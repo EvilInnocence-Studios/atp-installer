@@ -13,9 +13,21 @@ const api = {
 
 
   startDeploy: (config: any) => ipcRenderer.send('start-deploy', config),
-  onLog: (callback: (log: any) => void) => ipcRenderer.on('install-log', (_event, value) => callback(value)),
-  onComplete: (callback: (success: boolean) => void) => ipcRenderer.on('install-complete', (_event, value) => callback(value)),
-  onDeployComplete: (callback: (success: boolean) => void) => ipcRenderer.on('deploy-complete', (_event, value) => callback(value)),
+  onLog: (callback: (log: any) => void) => {
+    const subscription = (_event: any, value: any) => callback(value)
+    ipcRenderer.on('install-log', subscription)
+    return () => ipcRenderer.removeListener('install-log', subscription)
+  },
+  onComplete: (callback: (success: boolean) => void) => {
+    const subscription = (_event: any, value: any) => callback(value)
+    ipcRenderer.on('install-complete', subscription)
+    return () => ipcRenderer.removeListener('install-complete', subscription)
+  },
+  onDeployComplete: (callback: (success: boolean) => void) => {
+    const subscription = (_event: any, value: any) => callback(value)
+    ipcRenderer.on('deploy-complete', subscription)
+    return () => ipcRenderer.removeListener('deploy-complete', subscription)
+  },
 
   // CockroachDB
   listClusters: (apiKey: string) => ipcRenderer.invoke('cockroach:listClusters', apiKey),

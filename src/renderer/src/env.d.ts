@@ -8,6 +8,7 @@ export interface IElectronAPI {
 export interface LogMessage {
   message: string
   type: 'info' | 'error' | 'success'
+  timestamp?: string
 }
 
 export interface ICustomAPI {
@@ -21,9 +22,9 @@ export interface ICustomAPI {
 
 
   startDeploy: (config: AppConfig) => void
-  onLog: (callback: (log: LogMessage) => void) => void
-  onComplete: (callback: (success: boolean) => void) => void
-  onDeployComplete: (callback: (success: boolean) => void) => void
+  onLog: (callback: (log: LogMessage) => void) => (() => void)
+  onComplete: (callback: (success: boolean) => void) => (() => void)
+  onDeployComplete: (callback: (success: boolean) => void) => (() => void)
 
   // CockroachDB
   listClusters: (apiKey: string) => Promise<any[]>

@@ -11,7 +11,7 @@ const execAsync = promisify(exec)
 
 export async function runInstaller(config: AppConfig, win: BrowserWindow): Promise<void> {
   const log = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
-    win.webContents.send('install-log', { message, type })
+    win.webContents.send('install-log', { message, type, timestamp: new Date().toLocaleTimeString() })
   }
 
   const runCommand = async (command: string, cwd: string): Promise<void> => {
@@ -98,14 +98,17 @@ export async function runInstaller(config: AppConfig, win: BrowserWindow): Promi
 DB_HOST=${config.dbLocal.host}
 DB_PORT=${config.dbLocal.port}
 DB_USER=${config.dbLocal.user}
-DB_PASS=${config.dbLocal.pass}
-DB_NAME=${config.dbLocal.name}
+DB_PASSWORD=${config.dbLocal.pass}
+DB_DATABASE=${config.dbLocal.name}
 AWS_PROFILE=${config.awsProfile}
 ADMIN_DOMAIN=${config.adminDomain}
 PUBLIC_DOMAIN=${config.publicDomain}
 API_DOMAIN=${config.apiDomain}
+HOST_PUBLIC=http://${config.publicDomain}
+HOST_ADMIN=http://${config.adminDomain}
+HOST_API=http://${config.apiDomain}
 ENV=local
-DB_client=pg
+DB_CLIENT=pg
 DB_SSL=off
 SALT=${config.advanced.SALT || ''}
 SECRET=${config.advanced.SECRET || ''}
@@ -123,11 +126,11 @@ CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
 DB_HOST=${config.dbProd.host}
 DB_PORT=${config.dbProd.port}
 DB_USER=${config.dbProd.user}
-DB_PASS=${config.dbProd.pass}
-DB_NAME=${config.dbProd.name}
-DB_client=pg
+DB_PASSWORD=${config.dbProd.pass}
+DB_DATABASE=${config.dbProd.name}
+DB_CLIENT=pg
 DB_SSL=true
-ENV=production
+ENV=prod
 `
     await fs.writeFile(join(apiPath, '.env.prod'), apiEnvProdContent)
 
@@ -145,6 +148,23 @@ API_URL=https://${config.apiDomain}
 CLOUDFRONT_DISTRIBUTION_ID=
 `
     await fs.writeFile(join(publicPath, '.env'), publicEnvContent)
+
+    // 5b. Create config.local.ts for Admin and Public
+    log('Creating config.local.ts...', 'info')
+    const configLocalContent = `
+export const localConfig = {
+    api: {
+        baseUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? 'http://localhost:3002/' 
+            : 'https://${config.apiDomain}/'
+    }
+}
+`
+    await fs.ensureDir(join(adminPath, 'src'))
+    await fs.writeFile(join(adminPath, 'src/config.local.ts'), configLocalContent)
+
+    await fs.ensureDir(join(publicPath, 'src'))
+    await fs.writeFile(join(publicPath, 'src/config.local.ts'), configLocalContent)
 
     // 6. Setup Databases
     log('Setting up databases...', 'info')
@@ -195,6 +215,9 @@ CLOUDFRONT_DISTRIBUTION_ID=
     log('Installing Public dependencies...', 'info')
     await runCommand('yarn install', publicPath)
     await runCommand('yarn install-custom', publicPath)
+
+    log('Setting up databases...', 'info')
+    await runCommand('yarn setupDb --env=local --yes', apiPath)
 
     log('Installation Complete!', 'success')
     win.webContents.send('install-complete', true)

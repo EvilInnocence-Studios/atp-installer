@@ -17,20 +17,26 @@ export function Install(): JSX.Element {
 
   useEffect(() => {
     // Listen for logs
-    window.api.onLog((log) => {
+    const unsubscribeLogs = window.api.onLog((log) => {
       setLogs((prev) => [...prev, log])
     })
 
     // Listen for completion
-    window.api.onComplete((isSuccess) => {
+    const unsubscribeComplete = window.api.onComplete((isSuccess) => {
       setComplete(true)
       setSuccess(isSuccess)
     })
 
-    window.api.onDeployComplete((isSuccess) => {
+    const unsubscribeDeploy = window.api.onDeployComplete((isSuccess) => {
       setDeployComplete(true)
       setDeploySuccess(isSuccess)
     })
+
+    return () => {
+      unsubscribeLogs()
+      unsubscribeComplete()
+      unsubscribeDeploy()
+    }
   }, [])
 
   const startInstall = (): void => {

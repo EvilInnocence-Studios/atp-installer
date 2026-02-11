@@ -20,7 +20,7 @@ export function TerminalView({ logs }: TerminalViewProps): JSX.Element {
           log.type === 'success' ? 'text-green-400' : 
           'text-gray-300'
         }`}>
-          <span className="opacity-50 mr-2">[{new Date().toLocaleTimeString()}]</span>
+          <span className="opacity-50 mr-2">[{log.timestamp || new Date().toLocaleTimeString()}]</span>
           {log.message}
         </div>
       ))}
