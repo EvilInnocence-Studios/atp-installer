@@ -1,0 +1,45 @@
+{
+  "name": "atp-installer",
+  "productName": "ATP Installer",
+  "version": "1.0.0",
+  "description": "Installer for the ATP Framework",
+  "main": "out/main/index.js",
+
+  "scripts": {
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:win": "npm run build && electron-builder --win --config",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.0",
+    "@electron-toolkit/utils": "^3.0.0",
+    "clsx": "^2.1.1",
+    "electron-updater": "^6.1.7",
+    "execa": "^9.3.0",
+    "fs-extra": "^11.2.0",
+    "lucide-react": "^0.400.0",
+    "node-pty": "^1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "tailwind-merge": "^2.3.0"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.8",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "electron": "^31.0.2",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.1"
+  }
+}
