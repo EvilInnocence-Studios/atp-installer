@@ -52,7 +52,7 @@ function createWindow(): void {
 
 
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -90,6 +90,21 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-aws-profiles', async () => {
     return await getAwsProfiles()
+  })
+
+  ipcMain.handle('aws:getAccountId', async (_event, profile: string) => {
+    const { getAwsAccountId } = await import('./lib/system')
+    return await getAwsAccountId(profile)
+  })
+
+
+  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+    console.log('Main: openExternal called with:', url)
+    if (!url || !url.startsWith('http')) {
+        console.warn('Main: Invalid URL for openExternal:', url)
+        return
+    }
+    await shell.openExternal(url)
   })
 
   ipcMain.handle('aws:saveCredentials', async (_event, accessKey: string, secretKey: string, region: string) => {
@@ -154,6 +169,11 @@ app.whenReady().then(() => {
     return await createPostgreSQLDatabase(config, name)
   })
 
+  ipcMain.handle('database:isInitialized', async (_event, config: DatabaseConfig) => {
+    const { isDatabaseInitialized } = await import('./lib/postgres')
+    return await isDatabaseInitialized(config)
+  })
+
   ipcMain.handle('database:isEmpty', async (_event, config: DatabaseConfig) => {
     const { isDatabaseEmpty } = await import('./lib/postgres')
     return await isDatabaseEmpty(config)
@@ -164,6 +184,11 @@ app.whenReady().then(() => {
     return await wipeDatabase(config)
   })
 
+  ipcMain.handle('load-project-config', async (_event, path: string) => {
+    const { loadProjectConfig } = await import('./lib/installer')
+    return await loadProjectConfig(path)
+  })
+
   ipcMain.on('start-install', (event, config: AppConfig) => {
     // We don't await this because we want to return immediately and send logs via events
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -172,11 +197,116 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.on('start-deploy', (event, config: AppConfig) => {
+  ipcMain.on('start-deploy', (event, config: AppConfig, target?: 'api' | 'admin' | 'public' | 'all') => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
-      deployToAws(config, win)
+      deployToAws(config, win, target)
     }
+  })
+
+  ipcMain.on('start-check-aws-status', async (event, config: AppConfig) => {
+    const { checkAwsStatus } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      checkAwsStatus(config, win)
+    }
+  })
+
+  ipcMain.on('update-project-modules', async (event, config: AppConfig, newModules: string[]) => {
+    const { updateProjectModules } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      updateProjectModules(config, newModules, win)
+    }
+  })
+
+  // Migrations
+  ipcMain.handle('run-migration-sync', async (event, config: AppConfig, env: 'local' | 'prod') => {
+    const { runMigrationSync } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return await runMigrationSync(config, win!, env)
+  })
+
+  ipcMain.handle('run-db-setup', async (event, config: AppConfig, env: 'local' | 'prod') => {
+    const { runDbSetup } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return await runDbSetup(config, win!, env)
+  })
+
+  ipcMain.handle('migration:getStatus', async (_event, config: AppConfig, env: 'local' | 'prod') => {
+    const { getMigrationStatus } = await import('./lib/installer')
+    return await getMigrationStatus(config, env)
+  })
+
+  ipcMain.handle('migration:runSync', async (event, config: AppConfig, env: 'local' | 'prod') => {
+    const { runMigrationSync } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      return await runMigrationSync(config, win, env)
+    }
+    return false
+  })
+
+  // AWS Resource Init
+  ipcMain.handle('aws:ensureS3Bucket', async (_event, bucketName: string, options: any) => {
+    const { ensureS3Bucket } = await import('./lib/aws-init')
+    return await ensureS3Bucket(bucketName, options)
+  })
+
+  ipcMain.handle('aws:ensureLambdaRole', async (_event, roleName: string, options: any) => {
+    const { ensureLambdaRole } = await import('./lib/aws-init')
+    return await ensureLambdaRole(roleName, options)
+  })
+
+  ipcMain.handle('aws:ensureCertificate', async (_event, domainName: string, options: any) => {
+    const { ensureCertificate } = await import('./lib/aws-init')
+    return await ensureCertificate(domainName, options)
+  })
+
+  ipcMain.handle('aws:ensureCloudFrontDistribution', async (_event, apiPath: string, env: any) => {
+    const { ensureCloudFrontDistribution } = await import('./lib/aws-init')
+    return await ensureCloudFrontDistribution(apiPath, env)
+  })
+
+  // Dev Controls
+  const { processManager } = await import('./lib/processes')
+  
+  ipcMain.handle('dev:startAll', async (event, config: AppConfig) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) processManager.setWindow(win)
+    
+    const apiPath = join(config.destination, config.projectName, 'api')
+    const adminPath = join(config.destination, config.projectName, 'admin')
+    const publicPath = join(config.destination, config.projectName, 'public')
+
+    await Promise.all([
+        processManager.start('api', apiPath),
+        processManager.start('admin', adminPath),
+        processManager.start('public', publicPath)
+    ])
+    return true
+  })
+
+  ipcMain.handle('dev:restart', async (event, config: AppConfig, target: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) processManager.setWindow(win)
+    
+    const targetPath = join(config.destination, config.projectName, target)
+    await processManager.restart(target, targetPath)
+    return true
+  })
+
+  ipcMain.handle('dev:stop', async (_event, target: string) => {
+    await processManager.stop(target)
+    return true
+  })
+
+  ipcMain.handle('dev:getStatus', async () => {
+    return processManager.getStatus()
+  })
+
+  app.on('before-quit', () => {
+    processManager.stopAll()
   })
 
   createWindow()

@@ -29,6 +29,16 @@ export async function getAwsProfiles(): Promise<string[]> {
   }
 }
 
+export async function getAwsAccountId(profile: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(`aws sts get-caller-identity --profile ${profile} --query Account --output text`)
+    return stdout.trim()
+  } catch (error) {
+    console.error(`Failed to fetch AWS Account ID for profile ${profile}:`, error)
+    return null
+  }
+}
+
 export async function saveAwsCredentials(accessKey: string, secretKey: string, region: string): Promise<void> {
   const awsDir = join(homedir(), '.aws')
   await fs.ensureDir(awsDir)

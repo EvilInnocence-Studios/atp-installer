@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { AppConfig, DatabaseConfig, CheckResult } from '../../../shared/types'
 
+export interface LogMessage {
+  message: string
+  type: 'info' | 'error' | 'success'
+  timestamp?: string
+}
+
 const initialDbConfig: DatabaseConfig = {
   host: 'localhost',
   port: 5432,
@@ -36,13 +42,16 @@ const initialConfig: AppConfig = {
     CERTIFICATE_NAME: '',
     AWS_BUCKET_ADMIN: '',
     AWS_BUCKET_PUBLIC: '',
+    CLOUDFRONT_DISTRIBUTION_ID_API: '',
+    CLOUDFRONT_DISTRIBUTION_ID_ADMIN: '',
+    CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: ''
   },
   dbLocal: initialDbConfig,
 
   dbProd: { ...initialDbConfig, name: 'atp_prod' },
   awsProfile: 'default',
-  awsRegion: 'us-east-1'
-
+  awsRegion: 'us-east-1',
+  awsAccountId: ''
 }
 
 interface UIState {
@@ -75,6 +84,9 @@ interface InstallerContextType {
   updateConfig: (updates: Partial<AppConfig>) => void
   uiState: UIState
   updateUIState: (updates: Partial<UIState>) => void
+  logs: LogMessage[]
+  addLog: (log: LogMessage) => void
+  clearLogs: () => void
 }
 
 const InstallerContext = createContext<InstallerContextType | undefined>(undefined)
@@ -82,9 +94,18 @@ const InstallerContext = createContext<InstallerContextType | undefined>(undefin
 export function InstallerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [config, setConfig] = useState<AppConfig>(initialConfig)
   const [uiState, setUIState] = useState<UIState>(initialUIState)
+  const [logs, setLogs] = useState<LogMessage[]>([])
 
   const updateUIState = (updates: Partial<UIState>): void => {
     setUIState(prev => ({ ...prev, ...updates }))
+  }
+
+  const addLog = (log: LogMessage): void => {
+    setLogs(prev => [...prev, log])
+  }
+
+  const clearLogs = (): void => {
+    setLogs([])
   }
 
   const updateConfig = (updates: Partial<AppConfig>): void => {
@@ -96,17 +117,24 @@ export function InstallerProvider({ children }: { children: ReactNode }): JSX.El
       if (updates.dbProd) next.dbProd = { ...prev.dbProd, ...updates.dbProd }
       if (updates.advanced) next.advanced = { ...prev.advanced, ...updates.advanced }
 
+      // Sync Account ID
+      if (updates.awsAccountId !== undefined) {
+        next.advanced.ACCOUNT = updates.awsAccountId
+      } else if (updates.advanced && updates.advanced.ACCOUNT !== undefined) {
+        next.awsAccountId = updates.advanced.ACCOUNT
+      }
+
       const safeProjectName = next.projectName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
 
       // Update derived defaults
       if (updates.projectName || updates.adminDomain || updates.publicDomain) {
          next.advanced = {
            ...next.advanced,
-           LAMBDA_FUNCTION_NAME: `${next.projectName.replace(/[^a-zA-Z0-9]/g, '')}Api`,
-           S3BUCKET: `${next.projectName.toLowerCase()}-deploy`,
-           CERTIFICATE_NAME: next.publicDomain,
-           AWS_BUCKET_ADMIN: next.adminDomain,
-           AWS_BUCKET_PUBLIC: next.publicDomain
+           LAMBDA_FUNCTION_NAME: updates.advanced?.LAMBDA_FUNCTION_NAME ?? `${next.projectName.replace(/[^a-zA-Z0-9]/g, '')}Api`,
+           S3BUCKET: updates.advanced?.S3BUCKET ?? `${safeProjectName}-deploy`,
+           CERTIFICATE_NAME: updates.advanced?.CERTIFICATE_NAME ?? next.publicDomain,
+           AWS_BUCKET_ADMIN: updates.advanced?.AWS_BUCKET_ADMIN ?? next.adminDomain,
+           AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? next.publicDomain
          }
          
          // If project name changed, force update DB names
@@ -130,7 +158,7 @@ export function InstallerProvider({ children }: { children: ReactNode }): JSX.El
 
 
   return (
-    <InstallerContext.Provider value={{ config, setConfig, updateConfig, uiState, updateUIState }}>
+    <InstallerContext.Provider value={{ config, setConfig, updateConfig, uiState, updateUIState, logs, addLog, clearLogs }}>
       {children}
     </InstallerContext.Provider>
   )

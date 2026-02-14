@@ -7,8 +7,9 @@ import { ConfigDatabase } from './pages/ConfigDatabase'
 import { ConfigAWS } from './pages/ConfigAWS'
 import { ConfigOverview } from './pages/ConfigOverview'
 import { Install } from './pages/Install'
+import { SelectMode } from './pages/SelectMode'
+import { Manage } from './pages/Manage'
 import { InstallerProvider } from './context/InstallerContext'
-
 
 function App(): JSX.Element {
   return (
@@ -18,6 +19,7 @@ function App(): JSX.Element {
           <Routes>
             <Route path="/" element={<Navigate to="/prerequisites" replace />} />
             <Route path="/prerequisites" element={<Prerequisites />} />
+            <Route path="/select-mode" element={<SelectMode />} />
             <Route path="/config" element={<ConfigProject />} />
             <Route path="/config/modules" element={<ConfigModules />} />
             <Route path="/config/db" element={<ConfigDatabase />} />
@@ -25,6 +27,7 @@ function App(): JSX.Element {
             <Route path="/config/aws" element={<ConfigAWS />} />
             <Route path="/config/overview" element={<ConfigOverview />} />
             <Route path="/install" element={<Install />} />
+            <Route path="/manage" element={<Manage />} />
           </Routes>
 
         </div>

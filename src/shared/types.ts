@@ -23,6 +23,7 @@ export interface AppConfig {
   selectedClusterId?: string | null
   awsProfile: string
   awsRegion: string
+  awsAccountId: string
 }
 
 export interface DatabaseConfig {
@@ -233,3 +234,11 @@ export const AVAILABLE_MODULES: Module[] = [
     }
   }
 ]
+
+export interface AwsResourceStatus {
+  name: string
+  type: 'S3' | 'CloudFront' | 'Lambda' | 'Certificate' | 'IAM Role'
+  id: string
+  status: 'Exists' | 'Missing' | 'Error' | 'Loading'
+  details?: string
+}

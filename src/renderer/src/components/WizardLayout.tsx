@@ -28,7 +28,7 @@ export function WizardLayout({
     <div className="min-h-screen flex flex-col bg-gray-900 text-white">
       <AppHeader />
 
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl pt-40">
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-800">
           <div>
             <h2 className="text-2xl font-bold text-white">{title}</h2>

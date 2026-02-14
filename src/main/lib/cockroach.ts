@@ -75,13 +75,8 @@ export async function getCockroachConnectionInfo(apiKey: string, clusterId: stri
   const cluster = await response.json()
   
   // For serverless, regions are objects in the API response.
-  const regionObj = cluster.regions?.[0]
-  const regionName = typeof regionObj === 'string' ? regionObj : (regionObj?.name || 'us-east-1')
-  const cloud = (cluster.cloud_provider || 'AWS').toLowerCase()
-  const shortId = cluster.id.substring(0, 4)
-
   return {
-    host: `${cluster.name}-${shortId}.${cloud}.${regionName}.cockroachlabs.cloud`,
+    host: cluster.sql_dns,
     port: 26257
   }
 }

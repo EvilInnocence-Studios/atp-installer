@@ -1,24 +1,21 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useInstaller } from '../context/InstallerContext'
 import { TerminalView } from '../components/TerminalView'
-import { LogMessage } from '../env.d'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { WizardLayout } from '../components/WizardLayout'
 
 export function Install(): JSX.Element {
-  const { config } = useInstaller()
+  const { config, logs, addLog, clearLogs } = useInstaller()
+  const navigate = useNavigate()
   const [started, setStarted] = useState(false)
   const [complete, setComplete] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [deploying, setDeploying] = useState(false)
-  const [deployComplete, setDeployComplete] = useState(false)
-  const [deploySuccess, setDeploySuccess] = useState(false)
-  const [logs, setLogs] = useState<LogMessage[]>([])
-
+  
   useEffect(() => {
     // Listen for logs
     const unsubscribeLogs = window.api.onLog((log) => {
-      setLogs((prev) => [...prev, log])
+      addLog(log)
     })
 
     // Listen for completion
@@ -27,9 +24,9 @@ export function Install(): JSX.Element {
       setSuccess(isSuccess)
     })
 
-    const unsubscribeDeploy = window.api.onDeployComplete((isSuccess) => {
-      setDeployComplete(true)
-      setDeploySuccess(isSuccess)
+    const unsubscribeDeploy = window.api.onDeployComplete(() => {
+       // Only used in Manage or if we add deploy step here.
+       // We'll leave it empty to avoid errors if cleanup is needed.
     })
 
     return () => {
@@ -41,16 +38,10 @@ export function Install(): JSX.Element {
 
   const startInstall = (): void => {
     setStarted(true)
-    setLogs([{ message: 'Initializing installation...', type: 'info' }])
+    clearLogs()
+    addLog({ message: 'Initializing installation...', type: 'info', timestamp: new Date().toLocaleTimeString() })
     window.api.startInstall(config)
   }
-
-  const startDeploy = (): void => {
-    setDeploying(true)
-    setLogs((prev) => [...prev, { message: 'Starting deployment to AWS...', type: 'info' }])
-    window.api.startDeploy(config)
-  }
-
 
   return (
     <WizardLayout
@@ -96,27 +87,25 @@ export function Install(): JSX.Element {
             <TerminalView logs={logs} />
 
             {complete && success && (
-              <div className="flex justify-end gap-4">
-                {!deploying && !deployComplete ? (
-                    <button 
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
-                    onClick={startDeploy}
-                  >
-                    Deploy to AWS
-                  </button>
-                ) : deployComplete ? (
-                   <div className="text-green-500 font-semibold self-center">Deployment {deploySuccess ? 'Success' : 'Failed'}</div>
-                ) : (
-                  <div className="text-blue-400 font-semibold self-center">Deploying...</div>
-                )}
-                
+              <div className="flex justify-end gap-4 mt-6">
                 <button 
-                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  onClick={() => window.location.reload()} // Reset for now
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold shadow-lg hover:shadow-blue-500/20"
+                  onClick={() => navigate('/manage')}
                 >
-                  Start Over
+                  Go to Project Dashboard
                 </button>
               </div>
+            )}
+            
+            {complete && !success && (
+                <div className="flex justify-end gap-4 mt-6">
+                 <button 
+                   className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                   onClick={() => window.location.reload()} 
+                 >
+                   Try Again
+                 </button>
+                </div>
             )}
           </>
         )}
@@ -124,4 +113,3 @@ export function Install(): JSX.Element {
     </WizardLayout>
   )
 }
-

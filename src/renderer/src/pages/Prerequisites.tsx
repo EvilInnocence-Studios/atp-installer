@@ -35,8 +35,8 @@ export function Prerequisites(): JSX.Element {
     <WizardLayout
       title="System Requirements"
       subtitle="Checking if your system has the necessary tools installed."
-      nextLink="/config"
-      nextLabel="Next: Configuration"
+      nextLink="/select-mode"
+      nextLabel="Next: Select Mode"
       isNextDisabled={!allPassed}
     >
       <div className="space-y-4">

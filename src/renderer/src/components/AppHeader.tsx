@@ -1,8 +1,7 @@
-import { ComponentProps } from 'react'
 
 export function AppHeader(): JSX.Element {
   return (
-    <header className="relative bg-gray-900 border-b border-gray-700 h-32 flex items-center overflow-hidden">
+    <header className="fixed top-0 w-full z-50 bg-gray-900 border-b border-gray-700 h-32 flex items-center overflow-hidden">
       {/* Background Placeholder */}
       <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 via-purple-900/20 to-gray-900/50"></div>
       

@@ -91,13 +91,23 @@ export async function listPostgreSQLDatabases(config: DatabaseConfig): Promise<s
 
 export async function createPostgreSQLDatabase(config: DatabaseConfig, name: string): Promise<void> {
   try {
-    const dbName = config.host.includes('cockroach') ? 'defaultdb' : 'postgres'
-    const cmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -d ${dbName} -c "CREATE DATABASE \\"${name}\\";"`
+    const cmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -c "CREATE DATABASE \\"${name}\\";"`
     await runPsql(cmd, config.pass)
   } catch (error) {
     if ((error as Error).message.includes('psql')) throw error
     console.error('Failed to create database:', error)
     throw new Error(`Failed to create database "${name}": ${(error as Error).message}`)
+  }
+}
+
+export async function isDatabaseInitialized(config: DatabaseConfig): Promise<boolean> {
+  try {
+    const cmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -d "${config.name}" -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '_migrations');"`
+    const { stdout } = await runPsql(cmd, config.pass)
+    return stdout.trim() === 't'
+  } catch (error) {
+    console.error(`Failed to check if database "${config.name}" is initialized:`, error)
+    return false
   }
 }
 
@@ -118,9 +128,8 @@ export async function isDatabaseEmpty(config: DatabaseConfig): Promise<boolean> 
 
 export async function wipeDatabase(config: DatabaseConfig): Promise<void> {
   try {
-    const defaultDb = config.host.includes('cockroach') ? 'defaultdb' : 'postgres'
-    const dropCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -d ${defaultDb} -c "DROP DATABASE IF EXISTS \\"${config.name}\\";"`
-    const createCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -d ${defaultDb} -c "CREATE DATABASE \\"${config.name}\\";"`
+    const dropCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -c "DROP DATABASE IF EXISTS \\"${config.name}\\";"`
+    const createCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -c "CREATE DATABASE \\"${config.name}\\";"`
     
     await runPsql(dropCmd, config.pass)
     await runPsql(createCmd, config.pass)

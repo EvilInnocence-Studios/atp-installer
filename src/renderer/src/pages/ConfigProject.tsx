@@ -80,7 +80,7 @@ export function ConfigProject(): JSX.Element {
             />
             <button
                onClick={async () => {
-                 const path = await window.api.selectDirectory()
+                 const path = await window.api.openDirectory()
                  if (path) updateConfig({ destination: path })
                }}
                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors"

@@ -561,6 +561,26 @@ export function ConfigDatabase(): JSX.Element {
 
                   {(selectedClusterId || config.dbProd.host) && (
                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-700 animate-in fade-in duration-500">
+                      <div className="col-span-2 flex gap-4">
+                        <div className="flex-[3]">
+                          <label className="block text-xs text-gray-500 mb-1">Hostname</label>
+                          <input
+                            type="text"
+                            value={config.dbProd.host}
+                            onChange={(e) => updateDb('dbProd', { host: e.target.value })}
+                            className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">Port</label>
+                          <input
+                            type="number"
+                            value={config.dbProd.port}
+                            onChange={(e) => updateDb('dbProd', { port: parseInt(e.target.value) || 26257 })}
+                            className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm"
+                          />
+                        </div>
+                      </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">User</label>
                         {dbUsers.length > 0 ? (

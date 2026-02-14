@@ -22,9 +22,11 @@ export function ConfigAWS(): JSX.Element {
       const result = await window.api.getAwsProfiles()
       setProfiles(result)
       
-      if (!config.awsProfile && result.length > 0) {
-          const defaultProfile = result.includes('default') ? 'default' : result[0]
-          updateConfig({ awsProfile: defaultProfile })
+      const currentProfile = config.awsProfile || (result.includes('default') ? 'default' : result[0])
+      if (currentProfile) {
+          updateConfig({ awsProfile: currentProfile })
+          const accountId = await window.api.getAwsAccountId(currentProfile)
+          if (accountId) updateConfig({ awsAccountId: accountId })
       }
     } catch (err) {
       console.error(err)
@@ -102,9 +104,12 @@ export function ConfigAWS(): JSX.Element {
               <div className="flex gap-4 items-center">
                 <select
                   value={config.awsProfile}
-                  onChange={(e) => {
-                    updateConfig({ awsProfile: e.target.value })
+                  onChange={async (e) => {
+                    const profile = e.target.value
+                    updateConfig({ awsProfile: profile })
                     setShowAddForm(false)
+                    const accountId = await window.api.getAwsAccountId(profile)
+                    if (accountId) updateConfig({ awsAccountId: accountId })
                   }}
                   className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -112,10 +117,16 @@ export function ConfigAWS(): JSX.Element {
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
-                <div className="text-xs text-green-500 flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" /> Ready
+                <div className="text-xs text-green-500 flex items-center gap-1 min-w-[80px]">
+                  <CheckCircle className="w-4 h-4" /> 
+                  {config.awsAccountId ? <span title={config.awsAccountId}>Linked</span> : 'Ready'}
                 </div>
               </div>
+              {config.awsAccountId && (
+                <p className="mt-2 text-[10px] text-gray-500 font-mono">
+                  Account ID: <span className="text-gray-400">{config.awsAccountId}</span>
+                </p>
+              )}
               {!showAddForm && (
                 <button
                   onClick={() => setShowAddForm(true)}
@@ -200,6 +211,20 @@ export function ConfigAWS(): JSX.Element {
               </span>
             </summary>
             <div className="mt-4 pt-4 border-t border-gray-700 space-y-6">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-2">AWS Account ID</label>
+                  <input
+                    type="text"
+                    value={config.awsAccountId}
+                    onChange={(e) => updateConfig({ awsAccountId: e.target.value })}
+                    placeholder="123456789012"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                  <p className="text-[10px] text-gray-600 mt-2">
+                    Used for resource identification in deployment scripts.
+                  </p>
+                </div>
+
                {/* Region Setting (Moved here) */}
                <div>
                   <label className="block text-xs font-medium text-gray-400 mb-2">Target AWS Region</label>
@@ -221,19 +246,21 @@ export function ConfigAWS(): JSX.Element {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(config.advanced).map(([key, value]) => (
-                    <div key={key}>
-                      <label className="block text-xs font-mono text-gray-500 mb-1">{key}</label>
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) => updateConfig({ 
-                          advanced: { ...config.advanced, [key]: e.target.value } 
-                        })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                  ))}
+                  {Object.entries(config.advanced)
+                    .filter(([key]) => key !== 'ACCOUNT')
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <label className="block text-xs font-mono text-gray-500 mb-1">{key}</label>
+                        <input
+                          type="text"
+                          value={value}
+                          onChange={(e) => updateConfig({ 
+                            advanced: { ...config.advanced, [key]: e.target.value } 
+                          })}
+                          className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    ))}
                 </div>
             </div>
           </details>
