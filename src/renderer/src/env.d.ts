@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { AppConfig, CheckResult } from '../../shared/types'
+import { AppConfig, CheckResult, DatabaseConfig, MigrationStatus } from '../../shared/types'
 
 export interface IElectronAPI {
   loadPreferences: () => Promise<void>
@@ -34,7 +34,7 @@ export interface ICustomAPI {
   onLog: (callback: (log: LogMessage) => void) => (() => void)
   onComplete: (callback: (success: boolean) => void) => (() => void)
   onDeployComplete: (callback: (success: boolean) => void) => (() => void)
-  getMigrationStatus: (config: AppConfig, env: 'local' | 'prod') => Promise<any[]>
+  getMigrationStatus: (config: AppConfig, env: 'local' | 'prod') => Promise<MigrationStatus>
   runMigrationSync: (config: AppConfig, env: 'local' | 'prod') => Promise<boolean>
   runDbSetup: (config: AppConfig, env: 'local' | 'prod') => Promise<boolean>
   isDatabaseInitialized: (config: DatabaseConfig) => Promise<boolean>

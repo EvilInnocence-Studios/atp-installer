@@ -7,8 +7,8 @@ import {
     Wrench, 
     Cloud, 
     Check, 
-    X, 
-    ExternalLink, 
+    X,
+    ExternalLink,
     PlusCircle,
     Settings2,
     Database,
@@ -21,7 +21,7 @@ import {
     Info
 } from 'lucide-react'
 import { useInstaller } from '../context/InstallerContext'
-import { AwsResourceStatus, AVAILABLE_MODULES } from '../../../shared/types'
+import { AVAILABLE_MODULES, MigrationStatus, AwsResourceStatus } from '../../../shared/types'
 import { ModuleSelector } from '../components/ModuleSelector'
 import { ConfigDetails } from '../components/ConfigDetails'
 
@@ -38,8 +38,8 @@ export function Manage(): JSX.Element {
     const [showAwsStatus, setShowAwsStatus] = useState(false)
     const [fixing, setFixing] = useState<string | null>(null)
     const [deploying, setDeploying] = useState<'api' | 'admin' | 'public' | 'all' | null>(null)
-    const [dbHealthLocal, setDbHealthLocal] = useState<'Ready' | 'Empty' | 'Error' | 'Checking'>('Checking')
-    const [dbHealthProd, setDbHealthProd] = useState<'Ready' | 'Empty' | 'Error' | 'Checking'>('Checking')
+    const [dbHealthLocal, setDbHealthLocal] = useState<MigrationStatus>({ initialized: false, reason: 'Checking...' })
+    const [dbHealthProd, setDbHealthProd] = useState<MigrationStatus>({ initialized: false, reason: 'Checking...' })
     const [showModulesModal, setShowModulesModal] = useState(false)
     const [pendingModules, setPendingModules] = useState<string[]>([])
     const [syncingModules, setSyncingModules] = useState(false)
@@ -48,6 +48,7 @@ export function Manage(): JSX.Element {
         admin: 'Stopped',
         public: 'Stopped'
     })
+    const [refreshingDb, setRefreshingDb] = useState(false)
     const [showConfigModal, setShowConfigModal] = useState(false)
 
     const logEndRef = useRef<HTMLDivElement>(null)
@@ -62,10 +63,9 @@ export function Manage(): JSX.Element {
         // Initial checks
         checkDbHealth()
         refreshDevStatus()
-        
-        // Polling for statuses
+
+        // Polling for statuses (Only dev status now)
         const interval = setInterval(() => {
-            checkDbHealth()
             refreshDevStatus()
         }, 5000)
 
@@ -104,16 +104,21 @@ export function Manage(): JSX.Element {
     }, [config])
 
     const checkDbHealth = async () => {
+        setRefreshingDb(true)
+        setDbHealthLocal({ initialized: false, reason: 'Checking...' })
+        setDbHealthProd({ initialized: false, reason: 'Checking...' })
         try {
-            const localReady = await window.api.isDatabaseInitialized(config.dbLocal)
-            const localEmpty = await window.api.isDatabaseEmpty(config.dbLocal)
-            setDbHealthLocal(localReady ? 'Ready' : (localEmpty ? 'Empty' : 'Error'))
+            const localStatus = await window.api.getMigrationStatus(config, 'local')
+            setDbHealthLocal(localStatus)
 
-            const prodReady = await window.api.isDatabaseInitialized(config.dbProd)
-            const prodEmpty = await window.api.isDatabaseEmpty(config.dbProd)
-            setDbHealthProd(prodReady ? 'Ready' : (prodEmpty ? 'Empty' : 'Error'))
+            const prodStatus = await window.api.getMigrationStatus(config, 'prod')
+            setDbHealthProd(prodStatus)
         } catch (e) {
             console.error('Failed to check DB health:', e)
+            setDbHealthLocal({ initialized: false, reason: 'Check failed' })
+            setDbHealthProd({ initialized: false, reason: 'Check failed' })
+        } finally {
+            setRefreshingDb(false)
         }
     }
 
@@ -227,6 +232,28 @@ export function Manage(): JSX.Element {
         }
     }
 
+    const handleRunMigrationSync = async (env: 'local' | 'prod') => {
+        setLogs(prev => [...prev, { message: `Running database migration sync for ${env}...`, type: 'info', timestamp: new Date().toLocaleTimeString() }])
+        try {
+            await window.api.runMigrationSync(config, env)
+            setLogs(prev => [...prev, { message: `Database migration sync for ${env} completed.`, type: 'success', timestamp: new Date().toLocaleTimeString() }])
+            checkDbHealth()
+        } catch (e: any) {
+            setLogs(prev => [...prev, { message: `Database migration sync for ${env} failed: ${e.message}`, type: 'error', timestamp: new Date().toLocaleTimeString() }])
+        }
+    }
+
+    const handleRunDbSetup = async (env: 'local' | 'prod') => {
+        setLogs(prev => [...prev, { message: `Initializing database for ${env}...`, type: 'info', timestamp: new Date().toLocaleTimeString() }])
+        try {
+            await window.api.runDbSetup(config, env)
+            setLogs(prev => [...prev, { message: `Database initialization for ${env} completed.`, type: 'success', timestamp: new Date().toLocaleTimeString() }])
+            checkDbHealth()
+        } catch (e: any) {
+            setLogs(prev => [...prev, { message: `Database initialization for ${env} failed: ${e.message}`, type: 'error', timestamp: new Date().toLocaleTimeString() }])
+        }
+    }
+
     // Helper for rendering
     const renderStatusBadge = (status: 'Ready' | 'Empty' | 'Error' | 'Checking' | 'Running' | 'Stopped') => {
         const colors = {
@@ -257,7 +284,7 @@ export function Manage(): JSX.Element {
                         <p className="text-gray-400 text-sm mt-1">Project Command Center</p>
                     </div>
                     <div className="flex gap-4">
-                        <button 
+                        <button
                             onClick={() => setShowConfigModal(true)}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2 border border-gray-700"
                         >
@@ -311,7 +338,7 @@ export function Manage(): JSX.Element {
                                     <PlusCircle className="w-4 h-4 text-purple-400" />
                                     Modules
                                 </h2>
-                                <button 
+                                <button
                                     onClick={handleOpenModuleManagement}
                                     className="p-1.5 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
                                     title="Manage Modules"
@@ -342,7 +369,7 @@ export function Manage(): JSX.Element {
                                     <Server className="w-5 h-5 text-blue-400" />
                                     Deployment
                                 </h2>
-                                <button 
+                                <button
                                     onClick={handleOpenAwsStatus}
                                     className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1.5 font-medium transition-colors"
                                 >
@@ -388,7 +415,7 @@ export function Manage(): JSX.Element {
                                     <Play className="w-5 h-5" />
                                     Start All Dev Servers
                                 </button>
-                                
+
                                 <div className="space-y-3 pt-2">
                                     {(['api', 'admin', 'public'] as const).map(service => (
                                         <div key={service} className="bg-gray-800/30 rounded-lg p-3 border border-gray-800/50 flex items-center justify-between">
@@ -399,14 +426,14 @@ export function Manage(): JSX.Element {
                                             <div className="flex gap-1">
                                                 {devStatus[service] === 'Running' ? (
                                                     <>
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleRestartDev(service)}
                                                             className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
                                                             title="Restart"
                                                         >
                                                             <RefreshCw className="w-4 h-4" />
                                                         </button>
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleStopDev(service)}
                                                             className="p-1.5 hover:bg-red-900/30 rounded text-gray-400 hover:text-red-400 transition-colors"
                                                             title="Stop"
@@ -415,7 +442,7 @@ export function Manage(): JSX.Element {
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleRestartDev(service)}
                                                         className="p-1.5 hover:bg-green-900/30 rounded text-gray-400 hover:text-green-400 transition-colors"
                                                         title="Start"
@@ -435,28 +462,109 @@ export function Manage(): JSX.Element {
                     <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
                         {/* Database Health Card */}
                         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 shadow-xl">
-                            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                                <Database className="w-5 h-5 text-cyan-400" />
-                                Database Health
-                            </h2>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                                    <Database className="w-4 h-4 text-green-400" />
+                                    Database Health
+                                </h2>
+                                <button 
+                                    onClick={checkDbHealth}
+                                    disabled={refreshingDb}
+                                    className={`p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors ${refreshingDb ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    title="Refresh Status"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${refreshingDb ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
                             <div className="space-y-4">
-                                <div className="bg-gray-800/30 p-4 rounded-lg border border-gray-800">
+                                <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-800/50">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="text-xs text-gray-500 font-semibold uppercase">Local (Postgres)</span>
-                                        {renderStatusBadge(dbHealthLocal)}
+                                        <span className="text-xs text-gray-400">Local (Postgres)</span>
+                                        <div className="flex items-center gap-1.5">
+                                            {dbHealthLocal.initialized ? (
+                                                <>
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                                    <span className="text-[10px] font-bold text-green-500 uppercase">Ready</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${dbHealthLocal.reason === 'Checking...' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`} />
+                                                    <span className={`text-[10px] font-bold uppercase ${dbHealthLocal.reason === 'Checking...' ? 'text-blue-500' : 'text-red-500'}`}>
+                                                        {dbHealthLocal.reason === 'Checking...' ? 'Loading' : 'Action Required'}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-600 font-mono truncate">{config.dbLocal.name}</div>
+                                    {!dbHealthLocal.initialized && dbHealthLocal.reason !== 'Checking...' && (
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            <div className="text-[10px] text-gray-500 italic">
+                                                {dbHealthLocal.reason}
+                                            </div>
+                                            <button 
+                                                onClick={() => handleRunDbSetup('local')}
+                                                className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold py-1.5 rounded uppercase border border-blue-600/30 transition-colors flex items-center justify-center gap-1.5"
+                                            >
+                                                <Wrench className="w-3 h-3" />
+                                                Fix it
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="bg-gray-800/30 p-4 rounded-lg border border-gray-800">
+
+                                <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-800/50">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="text-xs text-gray-500 font-semibold uppercase">Prod (Cockroach)</span>
-                                        {renderStatusBadge(dbHealthProd)}
+                                        <span className="text-xs text-gray-400">Prod (Cockroach)</span>
+                                        <div className="flex items-center gap-1.5">
+                                            {dbHealthProd.initialized ? (
+                                                <>
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                                    <span className="text-[10px] font-bold text-green-500 uppercase">Ready</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${dbHealthProd.reason === 'Checking...' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`} />
+                                                    <span className={`text-[10px] font-bold uppercase ${dbHealthProd.reason === 'Checking...' ? 'text-blue-500' : 'text-red-500'}`}>
+                                                        {dbHealthProd.reason === 'Checking...' ? 'Loading' : 'Action Required'}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-600 font-mono truncate">{config.dbProd.name}</div>
+                                    {!dbHealthProd.initialized && dbHealthProd.reason !== 'Checking...' && (
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            <div className="text-[10px] text-gray-500 italic">
+                                                {dbHealthProd.reason}
+                                            </div>
+                                            <button 
+                                                onClick={() => handleRunDbSetup('prod')}
+                                                className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold py-1.5 rounded uppercase border border-blue-600/30 transition-colors flex items-center justify-center gap-1.5"
+                                            >
+                                                <Wrench className="w-3 h-3" />
+                                                Fix it
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-2 border-t border-gray-800 pt-4 mt-2">
+                                    <button 
+                                        onClick={() => handleRunMigrationSync('local')}
+                                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-bold py-2 rounded uppercase transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
+                                        Sync Local
+                                    </button>
+                                    <button 
+                                        onClick={() => handleRunMigrationSync('prod')}
+                                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-bold py-2 rounded uppercase transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
+                                        Sync Prod
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
                         {/* Live Deployments Card */}
                         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 shadow-xl">
                             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -464,18 +572,18 @@ export function Manage(): JSX.Element {
                                 Live Sites
                             </h2>
                             <div className="grid grid-cols-1 gap-2">
-                                <a 
-                                    href={`https://${config.publicDomain}`} 
-                                    target="_blank" 
+                                <a
+                                    href={`https://${config.publicDomain}`}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-between transition-all group"
                                 >
                                     <span className="text-xs font-semibold">Public Site</span>
                                     <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-blue-400" />
                                 </a>
-                                <a 
-                                    href={`https://${config.adminDomain}`} 
-                                    target="_blank" 
+                                <a
+                                    href={`https://${config.adminDomain}`}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-between transition-all group"
                                 >

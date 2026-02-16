@@ -220,7 +220,7 @@ export function ConfigDatabase(): JSX.Element {
 
   // Load users on mount if cluster is already selected
   useEffect(() => {
-    updateUIState({ dbActiveTab: 'local' })
+    updateUIState({ dbActiveTab: 'prod' })
     if (apiKey && selectedClusterId && dbUsers.length === 0) {
       window.api.listUsers(apiKey, selectedClusterId).then(users => updateUIState({ dbUsers: users })).catch(console.error)
     }
@@ -237,16 +237,6 @@ export function ConfigDatabase(): JSX.Element {
         {/* Tab Switcher */}
         <div className="flex border-b border-gray-700">
           <button
-            onClick={() => updateUIState({ dbActiveTab: 'local' })}
-            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] ${
-              dbActiveTab === 'local'
-                ? 'border-blue-500 text-blue-400 bg-blue-500/5'
-                : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Local Development
-          </button>
-          <button
             onClick={() => updateUIState({ dbActiveTab: 'prod' })}
             className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] ${
               dbActiveTab === 'prod'
@@ -255,6 +245,16 @@ export function ConfigDatabase(): JSX.Element {
             }`}
           >
             Production (CockroachDB)
+          </button>
+          <button
+            onClick={() => updateUIState({ dbActiveTab: 'local' })}
+            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] ${
+              dbActiveTab === 'local'
+                ? 'border-blue-500 text-blue-400 bg-blue-500/5'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Local Development (Optional)
           </button>
         </div>
 

@@ -242,3 +242,8 @@ export interface AwsResourceStatus {
   status: 'Exists' | 'Missing' | 'Error' | 'Loading'
   details?: string
 }
+export interface MigrationStatus {
+  initialized: boolean
+  reason?: string
+  migrations?: any[]
+}

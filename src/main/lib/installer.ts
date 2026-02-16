@@ -5,7 +5,7 @@ import { BrowserWindow } from 'electron'
 import * as fs from 'fs-extra'
 // import { AppConfig } from '../../shared/types' // Import via absolute path or relative? 
 // The shared folder is outside src/main in the file structure I envisioned? No, it's `src/shared`.
-import { AppConfig, AVAILABLE_MODULES } from '../../shared/types'
+import { AppConfig, AVAILABLE_MODULES, MigrationStatus } from '../../shared/types'
 
 const execAsync = promisify(exec)
 
@@ -648,22 +648,40 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
   }))
 }
 
-export async function getMigrationStatus(config: AppConfig, env: 'local' | 'prod' = 'local'): Promise<any[]> {
+export async function getMigrationStatus(config: AppConfig, env: 'local' | 'prod' = 'local'): Promise<MigrationStatus> {
   const apiPath = join(config.destination, config.projectName, 'api')
   try {
-    const { stdout } = await execAsync(`yarn migration-status --env=${env}`, { cwd: apiPath })
+    const { stdout } = await execAsync(`yarn migration-status --env=${env} --yes`, { cwd: apiPath })
     const output = stdout.trim()
-    try {
-      return JSON.parse(output)
-    } catch (e) {
-      if (output.includes("Database is not initialized")) {
-        return []
+    
+    console.log(`[getMigrationStatus] Raw output for ${env}:`, output)
+    
+    // Use a more robust approach to find the JSON block
+    const jsonMatch = output.match(/\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/s)
+    
+    if (jsonMatch) {
+      try {
+        const jsonStr = jsonMatch[0]
+        console.log(`[getMigrationStatus] Attempting to parse JSON: ${jsonStr.substring(0, 50)}...`)
+        return JSON.parse(jsonStr)
+      } catch (parseErr) {
+        console.error(`[getMigrationStatus] Failed to parse extracted JSON block for ${env}:`, parseErr)
+        console.error("[getMigrationStatus] Extracted string:", jsonMatch[0])
       }
-      throw e
     }
-  } catch (err) {
+
+    if (output.includes("Database is not initialized")) {
+      return { initialized: false, reason: "Database is not initialized" }
+    }
+
+    console.warn(`No valid JSON found in ${env} migration status output. Full output:`, output)
+    return { initialized: false, reason: "Unexpected script output (not JSON)" }
+  } catch (err: any) {
     console.error(`Failed to get migration status for ${env}:`, err)
-    return []
+    return { 
+      initialized: false, 
+      reason: err.message || `Failed to execute migration status check for ${env}` 
+    }
   }
 }
 
@@ -675,7 +693,7 @@ export async function runMigrationSync(config: AppConfig, win: BrowserWindow, en
 
   try {
     log(`Starting ${env} database synchronization...`, 'info')
-    const { stdout } = await execAsync(`yarn migration-sync --env=${env}`, { cwd: apiPath })
+    const { stdout } = await execAsync(`yarn migration-sync --env=${env} --yes`, { cwd: apiPath })
     stdout.split('\n').forEach(line => line.trim() && log(line.trim(), 'info'))
     log(`${env} database synchronization complete!`, 'success')
     return true
