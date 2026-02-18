@@ -39,6 +39,46 @@ export async function getAwsAccountId(profile: string): Promise<string | null> {
   }
 }
 
+export async function getAwsProfileCredentials(profile: string): Promise<{ accessKeyId: string; secretAccessKey: string } | null> {
+  try {
+    const credentialsPath = join(homedir(), '.aws', 'credentials')
+    if (!await fs.pathExists(credentialsPath)) {
+      return null
+    }
+    const content = await fs.readFile(credentialsPath, 'utf-8')
+    const lines = content.split('\n')
+    let currentProfile: string | null = null
+    let accessKeyId = ''
+    let secretAccessKey = ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        currentProfile = trimmed.slice(1, -1)
+        continue
+      }
+
+      if (currentProfile === profile) {
+        if (trimmed.toLowerCase().startsWith('aws_access_key_id')) {
+          accessKeyId = trimmed.split('=')[1].trim()
+        } else if (trimmed.toLowerCase().startsWith('aws_secret_access_key')) {
+          secretAccessKey = trimmed.split('=')[1].trim()
+        }
+      }
+
+      if (accessKeyId && secretAccessKey) break
+    }
+
+    if (accessKeyId && secretAccessKey) {
+      return { accessKeyId, secretAccessKey }
+    }
+    return null
+  } catch (error) {
+    console.error(`Error reading AWS credentials for profile ${profile}:`, error)
+    return null
+  }
+}
+
 export async function saveAwsCredentials(accessKey: string, secretKey: string, region: string): Promise<void> {
   const awsDir = join(homedir(), '.aws')
   await fs.ensureDir(awsDir)

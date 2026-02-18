@@ -14,7 +14,7 @@ export function ConfigAWS(): JSX.Element {
   const [accessKey, setAccessKey] = useState('')
   const [secretKey, setSecretKey] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
-
+console.log(config);
   const loadProfiles = async (): Promise<void> => {
     setIsLoading(true)
     setError(null)
@@ -26,7 +26,16 @@ export function ConfigAWS(): JSX.Element {
       if (currentProfile) {
           updateConfig({ awsProfile: currentProfile })
           const accountId = await window.api.getAwsAccountId(currentProfile)
-          if (accountId) updateConfig({ awsAccountId: accountId })
+          const creds = await window.api.getAwsProfileCredentials(currentProfile)
+          
+          updateConfig({ 
+            awsAccountId: accountId || config.awsAccountId,
+            advanced: {
+              ...config.advanced,
+              AWS_ACCESS_KEY_ID: creds?.accessKeyId || config.advanced.AWS_ACCESS_KEY_ID,
+              AWS_SECRET_ACCESS_KEY: creds?.secretAccessKey || config.advanced.AWS_SECRET_ACCESS_KEY
+            }
+          })
       }
     } catch (err) {
       console.error(err)
@@ -43,6 +52,13 @@ export function ConfigAWS(): JSX.Element {
     setError(null)
     try {
       await window.api.saveAwsCredentials(accessKey, secretKey, config.awsRegion)
+      updateConfig({
+        advanced: {
+          ...config.advanced,
+          AWS_ACCESS_KEY_ID: accessKey,
+          AWS_SECRET_ACCESS_KEY: secretKey
+        }
+      })
       // Clear inputs
       setAccessKey('')
       setSecretKey('')
@@ -108,8 +124,19 @@ export function ConfigAWS(): JSX.Element {
                     const profile = e.target.value
                     updateConfig({ awsProfile: profile })
                     setShowAddForm(false)
+                    
+                    // Fetch and sync credentials
+                    const creds = await window.api.getAwsProfileCredentials(profile)
                     const accountId = await window.api.getAwsAccountId(profile)
-                    if (accountId) updateConfig({ awsAccountId: accountId })
+                    
+                    updateConfig({ 
+                      awsAccountId: accountId || config.awsAccountId,
+                      advanced: {
+                        ...config.advanced,
+                        AWS_ACCESS_KEY_ID: creds?.accessKeyId || config.advanced.AWS_ACCESS_KEY_ID,
+                        AWS_SECRET_ACCESS_KEY: creds?.secretAccessKey || config.advanced.AWS_SECRET_ACCESS_KEY
+                      }
+                    })
                   }}
                   className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -245,9 +272,36 @@ export function ConfigAWS(): JSX.Element {
                   </p>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-2">AWS Access Key ID</label>
+                    <input
+                      type="text"
+                      value={config.advanced.AWS_ACCESS_KEY_ID || ''}
+                      onChange={(e) => updateConfig({ 
+                        advanced: { ...config.advanced, AWS_ACCESS_KEY_ID: e.target.value } 
+                      })}
+                      placeholder="AKIA..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-2">AWS Secret Access Key</label>
+                    <input
+                      type="password"
+                      value={config.advanced.AWS_SECRET_ACCESS_KEY || ''}
+                      onChange={(e) => updateConfig({ 
+                        advanced: { ...config.advanced, AWS_SECRET_ACCESS_KEY: e.target.value } 
+                      })}
+                      placeholder="••••••••••••••••"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(config.advanced)
-                    .filter(([key]) => key !== 'ACCOUNT')
+                    .filter(([key]) => !['ACCOUNT', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'].includes(key))
                     .map(([key, value]) => (
                       <div key={key}>
                         <label className="block text-xs font-mono text-gray-500 mb-1">{key}</label>

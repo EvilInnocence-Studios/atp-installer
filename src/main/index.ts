@@ -97,6 +97,11 @@ app.whenReady().then(async () => {
     return await getAwsAccountId(profile)
   })
 
+  ipcMain.handle('aws:getProfileCredentials', async (_event, profile: string) => {
+    const { getAwsProfileCredentials } = await import('./lib/system')
+    return await getAwsProfileCredentials(profile)
+  })
+
 
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     console.log('Main: openExternal called with:', url)

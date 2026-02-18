@@ -24,6 +24,14 @@ const generateRandomString = (length: number): string => {
   return result
 }
 
+const sanitizeBucketName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, '-') // Replace anything not a-z, 0-9, dot, or hyphen with hyphen
+    .replace(/-+/g, '-')          // Consolidate multiple hyphens
+    .replace(/^-+|-+$/g, '')      // Remove leading/trailing hyphens
+}
+
 const initialConfig: AppConfig = {
   projectName: 'my-atp-app',
   destination: '',
@@ -125,16 +133,17 @@ export function InstallerProvider({ children }: { children: ReactNode }): JSX.El
       }
 
       const safeProjectName = next.projectName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+      const bucketProjectName = sanitizeBucketName(next.projectName)
 
       // Update derived defaults
       if (updates.projectName || updates.adminDomain || updates.publicDomain) {
          next.advanced = {
            ...next.advanced,
            LAMBDA_FUNCTION_NAME: updates.advanced?.LAMBDA_FUNCTION_NAME ?? `${next.projectName.replace(/[^a-zA-Z0-9]/g, '')}Api`,
-           S3BUCKET: updates.advanced?.S3BUCKET ?? `${safeProjectName}-deploy`,
+           S3BUCKET: updates.advanced?.S3BUCKET ?? sanitizeBucketName(`${bucketProjectName}-deploy`),
            CERTIFICATE_NAME: updates.advanced?.CERTIFICATE_NAME ?? next.publicDomain,
-           AWS_BUCKET_ADMIN: updates.advanced?.AWS_BUCKET_ADMIN ?? next.adminDomain,
-           AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? next.publicDomain
+           AWS_BUCKET_ADMIN: updates.advanced?.AWS_BUCKET_ADMIN ?? sanitizeBucketName(next.adminDomain),
+           AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? sanitizeBucketName(next.publicDomain)
          }
          
          // If project name changed, force update DB names

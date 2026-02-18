@@ -131,9 +131,38 @@ export async function ensureCertificate(domainName: string, options: AwsInitOpti
  */
 export async function ensureCloudFrontDistribution(apiPath: string, env: Record<string, string>): Promise<void> {
   console.log(`Running cloudfront script in ${apiPath}...`)
+  
   // We need to pass environment variables to the script
-  await execAsync(`yarn cloudfront`, {
+  const { stdout } = await execAsync(`yarn cloudfront`, {
     cwd: apiPath,
     env: { ...process.env, ...env }
   })
+
+  console.log(stdout)
+
+  // Parse for DISTRIBUTION_ID
+  const match = stdout.match(/DISTRIBUTION_ID=(.*)/)
+  if (match && match[1]) {
+    const distributionId = match[1].trim()
+    console.log(`Captured Distribution ID: ${distributionId}`)
+
+    // Update .env files in the project directory
+    const fs = await import('fs-extra')
+    const { join } = await import('path')
+
+    const envFiles = ['.env', '.env.prod']
+    for (const file of envFiles) {
+      const envPath = join(apiPath, file)
+      if (await fs.pathExists(envPath)) {
+        let content = await fs.readFile(envPath, 'utf-8')
+        if (content.includes('CLOUDFRONT_DISTRIBUTION_ID=')) {
+          content = content.replace(/CLOUDFRONT_DISTRIBUTION_ID=.*/, `CLOUDFRONT_DISTRIBUTION_ID=${distributionId}`)
+        } else {
+          content += `\nCLOUDFRONT_DISTRIBUTION_ID=${distributionId}\n`
+        }
+        await fs.writeFile(envPath, content)
+        console.log(`Updated ${file} with Distribution ID ${distributionId}`)
+      }
+    }
+  }
 }

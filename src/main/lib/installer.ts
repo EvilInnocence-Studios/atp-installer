@@ -102,12 +102,14 @@ DB_client=pg
 DB_HOST=${config.dbLocal.host}
 DB_PORT=${config.dbLocal.port}
 DB_USER=${config.dbLocal.user}
-DB_PASSWORD=${config.dbLocal.pass}
+DB_PASSWORD='${config.dbLocal.pass}'
 DB_DATABASE=${config.dbLocal.name}
 DB_SSL=off
 SALT=${config.advanced.SALT || ''}
 SECRET=${config.advanced.SECRET || ''}
 AWS_PROFILE=${config.awsProfile}
+AWS_REGION=${config.awsRegion}
+AWS_DEFAULT_REGION=${config.awsRegion}
 AWS_ACCESS_KEY_ID=${config.advanced.AWS_ACCESS_KEY_ID || ''}
 AWS_SECRET_ACCESS_KEY=${config.advanced.AWS_SECRET_ACCESS_KEY || ''}
 LAMBDA_FUNCTION_NAME=${config.advanced.LAMBDA_FUNCTION_NAME || ''}
@@ -116,6 +118,7 @@ ACCOUNT=${config.advanced.ACCOUNT || ''}
 S3BUCKET=${config.advanced.S3BUCKET || ''}
 S3KEY=${config.advanced.S3KEY || ''}
 CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
+ALTERNATE_DOMAIN_NAME=${config.apiDomain}
 CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_API || ''}
 `
     await fs.writeFile(join(apiPath, '.env'), apiEnvContent)
@@ -129,13 +132,16 @@ DB_client=cockroachdb
 DB_HOST=${config.dbProd.host}
 DB_PORT=${config.dbProd.port}
 DB_USER=${config.dbProd.user}
-DB_PASSWORD=${config.dbProd.pass}
+DB_PASSWORD='${config.dbProd.pass}'
 DB_DATABASE=${config.dbProd.name}
 DB_SSL=on
 SALT=${config.advanced.SALT || ''}
 SECRET=${config.advanced.SECRET || ''}
+AWS_REGION=${config.awsRegion}
+AWS_DEFAULT_REGION=${config.awsRegion}
 AWS_ACCESS_KEY_ID=${config.advanced.AWS_ACCESS_KEY_ID || ''}
 AWS_SECRET_ACCESS_KEY=${config.advanced.AWS_SECRET_ACCESS_KEY || ''}
+ALTERNATE_DOMAIN_NAME=${config.apiDomain}
 CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_API || ''}
 `
     await fs.writeFile(join(apiPath, '.env.prod'), apiEnvProdContent)
@@ -241,13 +247,14 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
     win.webContents.send('install-log', { message, type })
   }
 
-  const runCommand = async (command: string, cwd: string): Promise<void> => {
+  const runCommand = async (command: string, cwd: string): Promise<string> => {
     log(`Running: ${command}`, 'info')
     try {
       const { stdout } = await execAsync(command, { cwd })
       stdout.split('\n').forEach(line => {
         if (line.trim()) log(line.trim(), 'info')
       })
+      return stdout
     } catch (error) {
        log(`Error running ${command}: ${(error as Error).message}`, 'error')
        throw error
@@ -290,7 +297,34 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
 
     if (target === 'all' || target === 'api') {
       log('Deploying API...', 'info')
-      await runCommand('yarn full-deploy', apiPath)
+      const stdout = await runCommand('yarn full-deploy', apiPath)
+      
+      // Parse for LAMBDA_URL
+      const match = stdout.match(/LAMBDA_URL=(.*)/)
+      if (match && match[1]) {
+        const fullUrl = match[1].trim()
+        const urlHost = fullUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        log(`Captured Lambda URL: ${fullUrl}`, 'info')
+        log(`Updating CF_ORIGIN_DOMAIN_NAME to: ${urlHost}`, 'info')
+
+        // Update .env files
+        const envFiles = ['.env', '.env.prod']
+        for (const file of envFiles) {
+          const envPath = join(apiPath, file)
+          if (await fs.pathExists(envPath)) {
+            let content = await fs.readFile(envPath, 'utf-8')
+            if (content.includes('CF_ORIGIN_DOMAIN_NAME=')) {
+              content = content.replace(/CF_ORIGIN_DOMAIN_NAME=.*/, `CF_ORIGIN_DOMAIN_NAME=${urlHost}`)
+            } else if (content.includes('ORIGIN_DOMAIN_NAME=')) {
+               content = content.replace(/ORIGIN_DOMAIN_NAME=.*/, `ORIGIN_DOMAIN_NAME=${urlHost}`)
+            } else {
+              content += `\nCF_ORIGIN_DOMAIN_NAME=${urlHost}\n`
+            }
+            await fs.writeFile(envPath, content)
+            log(`Updated ${file} with new origin domain name.`, 'info')
+          }
+        }
+      }
     }
 
     if (target === 'all' || target === 'admin') {

@@ -181,16 +181,30 @@ export function Manage(): JSX.Element {
                 await window.api.ensureLambdaRole(item.id, options)
             } else if (item.type === 'Certificate') {
                 await window.api.ensureCertificate(item.id, options)
-            } else if (item.type === 'CloudFront' && item.name === 'API Distribution') {
-                const apiPath = `${config.destination}/${config.projectName}/api`
-                const env = {
-                    ORIGIN_DOMAIN_NAME: config.advanced.ORIGIN_DOMAIN_NAME || '',
-                    ALTERNATE_DOMAIN_NAMES: config.advanced.ALTERNATE_DOMAIN_NAMES || '',
-                    CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
-                    AWS_PROFILE: config.awsProfile,
-                    AWS_REGION: config.awsRegion
+            } else if (item.type === 'CloudFront') {
+                let projectPath = ''
+                let alternateDomain = ''
+                if (item.name === 'API Distribution') {
+                    projectPath = `${config.destination}/${config.projectName}/api`
+                    alternateDomain = config.apiDomain
+                } else if (item.name === 'Admin Distribution') {
+                    projectPath = `${config.destination}/${config.projectName}/admin`
+                    alternateDomain = config.adminDomain
+                } else if (item.name === 'Public Distribution') {
+                    projectPath = `${config.destination}/${config.projectName}/public`
+                    alternateDomain = config.publicDomain
                 }
-                await window.api.ensureCloudFrontDistribution(apiPath, env)
+
+                if (projectPath) {
+                    const env = {
+                        ORIGIN_DOMAIN_NAME: config.advanced.ORIGIN_DOMAIN_NAME || '',
+                        ALTERNATE_DOMAIN_NAMES: alternateDomain,
+                        CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
+                        AWS_PROFILE: config.awsProfile,
+                        AWS_REGION: config.awsRegion
+                    }
+                    await window.api.ensureCloudFrontDistribution(projectPath, env)
+                }
             } else if (item.type === 'Lambda') {
                 setShowAwsStatus(false)
                 handleDeployProject('api')
@@ -324,6 +338,14 @@ export function Manage(): JSX.Element {
                         <div>
                             <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">AWS Profile</div>
                             <div className="text-sm text-white font-medium">{config.awsProfile}</div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Access Key ID</div>
+                            <div className="text-sm text-white font-medium truncate" title={config.advanced.AWS_ACCESS_KEY_ID}>{config.advanced.AWS_ACCESS_KEY_ID || 'Not set'}</div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Secret Access Key</div>
+                            <div className="text-sm text-white font-medium">{config.advanced.AWS_SECRET_ACCESS_KEY ? '••••••••••••••••' : 'Not set'}</div>
                         </div>
                     </div>
                 </div>

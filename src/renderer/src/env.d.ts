@@ -17,6 +17,7 @@ export interface ICustomAPI {
   openDirectory: () => Promise<string | null>
   getAwsProfiles: () => Promise<string[]>
   getAwsAccountId: (profile: string) => Promise<string | null>
+  getAwsProfileCredentials: (profile: string) => Promise<{ accessKeyId: string; secretAccessKey: string } | null>
   saveAwsCredentials: (accessKey: string, secretKey: string, region: string) => Promise<void>
   startInstall: (config: AppConfig) => void
   loadProjectConfig: (path: string) => Promise<Partial<AppConfig>>

@@ -9,6 +9,7 @@ const api = {
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   getAwsProfiles: () => ipcRenderer.invoke('get-aws-profiles'),
   getAwsAccountId: (profile: string) => ipcRenderer.invoke('aws:getAccountId', profile),
+  getAwsProfileCredentials: (profile: string) => ipcRenderer.invoke('aws:getProfileCredentials', profile),
   saveAwsCredentials: (accessKey: string, secretKey: string, region: string) => ipcRenderer.invoke('aws:saveCredentials', accessKey, secretKey, region),
   startInstall: (config: any) => ipcRenderer.send('start-install', config),
   loadProjectConfig: (path: string) => ipcRenderer.invoke('load-project-config', path),

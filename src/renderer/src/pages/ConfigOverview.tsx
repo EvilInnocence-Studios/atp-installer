@@ -31,7 +31,7 @@ export function ConfigOverview(): JSX.Element {
     },
     {
       title: 'Cloud Infrastructure',
-      description: `Prepare AWS configuration for ${config.awsRegion} using profile "${config.awsProfile}" (Deployment is a separate step)`,
+      description: `Prepare AWS configuration for ${config.awsRegion} using profile "${config.awsProfile}"${config.advanced.AWS_ACCESS_KEY_ID ? ` (${config.advanced.AWS_ACCESS_KEY_ID})` : ''} (Deployment is a separate step)`,
       icon: <Globe className="w-5 h-5 text-orange-400" />
     }
   ]

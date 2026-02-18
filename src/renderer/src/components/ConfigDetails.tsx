@@ -30,6 +30,8 @@ export function ConfigDetails({ config }: { config: AppConfig }): JSX.Element {
         <div className="space-y-2">
           <Detail label="Profile" value={config.awsProfile} />
           <Detail label="Region" value={config.awsRegion} />
+          <Detail label="Access Key ID" value={config.advanced?.AWS_ACCESS_KEY_ID} mono />
+          <Detail label="Secret Access Key" value={config.advanced?.AWS_SECRET_ACCESS_KEY} mono />
         </div>
       </div>
 
