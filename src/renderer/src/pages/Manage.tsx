@@ -32,7 +32,7 @@ interface LogMessage {
 }
 
 export function Manage(): JSX.Element {
-    const { config } = useInstaller()
+    const { config, setConfig } = useInstaller()
     const [logs, setLogs] = useState<LogMessage[]>([])
     const [awsStatus, setAwsStatus] = useState<AwsResourceStatus[] | null>(null)
     const [showAwsStatus, setShowAwsStatus] = useState(false)
@@ -52,6 +52,26 @@ export function Manage(): JSX.Element {
     const [showConfigModal, setShowConfigModal] = useState(false)
 
     const logEndRef = useRef<HTMLDivElement>(null)
+
+    const refreshConfig = async (): Promise<typeof config> => {
+        try {
+            const projectPath = `${config.destination}/${config.projectName}`
+            const loadedConfig = await window.api.loadProjectConfig(projectPath)
+            if (loadedConfig) {
+                // Merge loaded config with existing config
+                const updatedConfig = {
+                    ...config,
+                    ...loadedConfig,
+                    advanced: { ...config.advanced, ...loadedConfig.advanced }
+                }
+                setConfig(updatedConfig)
+                return updatedConfig
+            }
+        } catch (e) {
+            console.error('Failed to refresh project config:', e)
+        }
+        return config
+    }
 
     useEffect(() => {
         if (logEndRef.current) {
@@ -89,6 +109,7 @@ export function Manage(): JSX.Element {
             setDeploying(null)
             if (success) {
                 setLogs(prev => [...prev, { message: 'Deployment successfully completed', type: 'success', timestamp: new Date().toLocaleTimeString() }])
+                refreshConfig() // Refresh config after successful deployment
             } else {
                 setLogs(prev => [...prev, { message: 'Deployment failed. Check logs for details.', type: 'error', timestamp: new Date().toLocaleTimeString() }])
             }
@@ -196,13 +217,22 @@ export function Manage(): JSX.Element {
                 }
 
                 if (projectPath) {
-                    const env = {
-                        ORIGIN_DOMAIN_NAME: config.advanced.ORIGIN_DOMAIN_NAME || '',
+                    const env: Record<string, string> = {
                         ALTERNATE_DOMAIN_NAMES: alternateDomain,
                         CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
+                        CLOUDFRONT_DISTRIBUTION_ID: item.id !== 'Not Configured' ? item.id : '',
                         AWS_PROFILE: config.awsProfile,
                         AWS_REGION: config.awsRegion
                     }
+
+                    if (item.name === 'API Distribution') {
+                        env.CF_ORIGIN_DOMAIN_NAME = config.advanced.ORIGIN_DOMAIN_NAME || ''
+                    } else if (item.name === 'Admin Distribution') {
+                        env.AWS_BUCKET = config.advanced.AWS_BUCKET_ADMIN || ''
+                    } else if (item.name === 'Public Distribution') {
+                        env.AWS_BUCKET = config.advanced.AWS_BUCKET_PUBLIC || ''
+                    }
+
                     await window.api.ensureCloudFrontDistribution(projectPath, env)
                 }
             } else if (item.type === 'Lambda') {
@@ -210,8 +240,10 @@ export function Manage(): JSX.Element {
                 handleDeployProject('api')
                 return
             }
-            // Refresh status
-            window.api.startCheckAwsStatus(config)
+            
+            // Refresh config and then refresh status
+            const updatedConfig = await refreshConfig()
+            window.api.startCheckAwsStatus(updatedConfig)
         } catch (e: any) {
             console.error('Fix failed:', e)
             setLogs(prev => [...prev, { message: `Fix failed for ${item.name}: ${e.message}`, type: 'error', timestamp: new Date().toLocaleTimeString() }])
@@ -725,7 +757,7 @@ export function Manage(): JSX.Element {
                                                         )}
                                                     </div>
                                                     <div className="text-right">
-                                                        <div className={`flex items-center gap-2 text-sm font-semibold ${
+                                                        <div className={`flex items-center justify-end gap-2 text-sm font-semibold ${
                                                             item.status === 'Exists' ? 'text-green-400' :
                                                             item.status === 'Missing' ? 'text-yellow-400' : 
                                                             item.status === 'Loading' ? 'text-blue-400' :
@@ -752,8 +784,21 @@ export function Manage(): JSX.Element {
                                                                 {item.type === 'Lambda' ? (deploying === 'api' ? 'Deploying...' : 'Deploy') : (fixing === item.id ? 'Fixing...' : 'Fix')}
                                                             </button>
                                                         )}
+                                                        {item.details === 'Needs Custom Certificate' && (
+                                                            <button
+                                                                onClick={() => handleFix(item)}
+                                                                disabled={fixing === item.id || (awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED')}
+                                                                className={`mt-2 px-3 py-1 bg-blue-600/20 text-blue-400 rounded border border-blue-600/50 hover:bg-blue-600/30 transition-colors text-xs flex items-center gap-1 ml-auto ${awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                title={awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'Wait for SSL Certificate to be ISSUED' : 'Attach Custom Certificate'}
+                                                            >
+                                                                <ShieldCheck className={`w-3 h-3 ${fixing === item.id ? 'animate-spin' : ''}`} />
+                                                                {fixing === item.id ? 'Attaching...' : 'Add Certificate'}
+                                                            </button>
+                                                        )}
                                                         {item.details && item.status === 'Exists' && (
-                                                            <div className="text-xs text-gray-500 mt-1">{item.details}</div>
+                                                            <div className={`text-xs mt-1 ${item.details === 'Needs Custom Certificate' ? 'text-blue-400' : 'text-gray-500'}`}>
+                                                                {item.details}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

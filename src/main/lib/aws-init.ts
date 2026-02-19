@@ -1,5 +1,7 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import * as fs from 'fs-extra'
+import { join } from 'path'
 
 const execAsync = promisify(exec)
 
@@ -147,8 +149,6 @@ export async function ensureCloudFrontDistribution(apiPath: string, env: Record<
     console.log(`Captured Distribution ID: ${distributionId}`)
 
     // Update .env files in the project directory
-    const fs = await import('fs-extra')
-    const { join } = await import('path')
 
     const envFiles = ['.env', '.env.prod']
     for (const file of envFiles) {

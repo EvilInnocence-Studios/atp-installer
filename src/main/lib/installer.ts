@@ -537,11 +537,11 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
            S3BUCKET: apiEnv['S3BUCKET'] || '',
            S3KEY: apiEnv['S3KEY'] || '',
             CERTIFICATE_NAME: apiEnv['CERTIFICATE_NAME'] || '',
-            ORIGIN_DOMAIN_NAME: apiEnv['ORIGIN_DOMAIN_NAME'] || apiEnv['CF_ORIGIN_DOMAIN_NAME'] || '',
-            ALTERNATE_DOMAIN_NAMES: apiEnv['ALTERNATE_DOMAIN_NAMES'] || '',
+            ORIGIN_DOMAIN_NAME: apiEnv['ORIGIN_DOMAIN_NAME'] || apiEnv['CF_ORIGIN_DOMAIN_NAME'] || apiEnvProd['ORIGIN_DOMAIN_NAME'] || apiEnvProd['CF_ORIGIN_DOMAIN_NAME'] || '',
+            ALTERNATE_DOMAIN_NAMES: apiEnv['ALTERNATE_DOMAIN_NAMES'] || apiEnv['ALTERNATE_DOMAIN_NAME'] || apiEnvProd['ALTERNATE_DOMAIN_NAMES'] || apiEnvProd['ALTERNATE_DOMAIN_NAME'] || '',
             AWS_BUCKET_ADMIN: adminEnv['AWS_BUCKET'] || '',
             AWS_BUCKET_PUBLIC: publicEnv['AWS_BUCKET'] || '',
-            CLOUDFRONT_DISTRIBUTION_ID_API: apiEnv['CLOUDFRONT_DISTRIBUTION_ID'] || '',
+            CLOUDFRONT_DISTRIBUTION_ID_API: apiEnv['CLOUDFRONT_DISTRIBUTION_ID'] || apiEnvProd['CLOUDFRONT_DISTRIBUTION_ID'] || '',
             CLOUDFRONT_DISTRIBUTION_ID_ADMIN: adminEnv['CLOUDFRONT_DISTRIBUTION_ID'] || '',
             CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: publicEnv['CLOUDFRONT_DISTRIBUTION_ID'] || ''
         }
@@ -658,7 +658,12 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
               if (!d.id) return { name: d.desc, type: 'CloudFront', id: 'Not Configured', status: 'Missing' }
               try {
                   const res = await runAws(`cloudfront get-distribution --id ${d.id}`)
-                  return { name: d.desc, type: 'CloudFront', id: d.id, status: 'Exists', details: res.Distribution?.Status }
+                  const dist = res.Distribution
+                  let details = dist?.Status || 'Unknown'
+                  if (dist?.DistributionConfig?.ViewerCertificate?.CloudFrontDefaultCertificate) {
+                    details = 'Needs Custom Certificate'
+                  }
+                  return { name: d.desc, type: 'CloudFront', id: d.id, status: 'Exists', details }
               } catch (e: any) {
                   return { name: d.desc, type: 'CloudFront', id: d.id, status: 'Missing' }
               }
