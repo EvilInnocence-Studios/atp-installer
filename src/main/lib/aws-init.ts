@@ -26,26 +26,32 @@ export async function ensureS3Bucket(bucketName: string, options: AwsInitOptions
     // Create bucket
     console.log(`Creating bucket ${bucketName}...`)
     await runAws(`s3api create-bucket --bucket ${bucketName}`, options)
-    
-    // Disable Block Public Access
-    await runAws(`s3api put-public-access-block --bucket ${bucketName} --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"`, options)
-    
-    // Add Public Read Policy
-    const policy = {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Sid: "PublicRead",
-          Effect: "Allow",
-          Principal: "*",
-          Action: ["s3:GetObject"],
-          Resource: [`arn:aws:s3:::${bucketName}/*`]
-        }
-      ]
-    }
-    const policyStr = JSON.stringify(policy).replace(/"/g, '\\"')
-    await runAws(`s3api put-bucket-policy --bucket ${bucketName} --policy "${policyStr}"`, options)
   }
+
+  // Ensure ACL support and Public Access configuration (Runs for both new and existing buckets)
+  console.log(`Configuring bucket ${bucketName} for ACL support and public access...`)
+  
+  // 1. Set Object Ownership to BucketOwnerPreferred to enable ACLs
+  await runAws(`s3api put-bucket-ownership-controls --bucket ${bucketName} --ownership-controls="Rules=[{ObjectOwnership=BucketOwnerPreferred}]"`, options)
+
+  // 2. Disable Block Public Access
+  await runAws(`s3api put-public-access-block --bucket ${bucketName} --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"`, options)
+  
+  // 3. Add Public Read Policy
+  const policy = {
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Sid: "PublicRead",
+        Effect: "Allow",
+        Principal: "*",
+        Action: ["s3:GetObject"],
+        Resource: [`arn:aws:s3:::${bucketName}/*`]
+      }
+    ]
+  }
+  const policyStr = JSON.stringify(policy).replace(/"/g, '\\"')
+  await runAws(`s3api put-bucket-policy --bucket ${bucketName} --policy "${policyStr}"`, options)
 }
 
 /**
