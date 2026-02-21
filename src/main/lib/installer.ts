@@ -98,7 +98,7 @@ export async function runInstaller(config: AppConfig, win: BrowserWindow): Promi
 HOST_PUBLIC=http://localhost:3000
 HOST_ADMIN=http://localhost:3001
 HOST_API=http://localhost:3002
-DB_client=pg
+DB_CLIENT=pg
 DB_HOST=${config.dbLocal.host}
 DB_PORT=${config.dbLocal.port}
 DB_USER=${config.dbLocal.user}
@@ -128,7 +128,7 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_API || '
 HOST_PUBLIC=https://${config.publicDomain}
 HOST_ADMIN=https://${config.adminDomain}
 HOST_API=https://${config.apiDomain}
-DB_client=cockroachdb
+DB_CLIENT=cockroachdb
 DB_HOST=${config.dbProd.host}
 DB_PORT=${config.dbProd.port}
 DB_USER=${config.dbProd.user}
@@ -635,7 +635,28 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
               const res = await runAws(`acm list-certificates`)
               const cert = res.CertificateSummaryList?.find((c: any) => c.DomainName === certName)
               if (cert) {
-                 return { name: 'SSL Certificate', type: 'Certificate', id: certName, status: 'Exists', details: cert.Status }
+                 // Get more details including validation records
+                 try {
+                     const descRes = await runAws(`acm describe-certificate --certificate-arn ${cert.CertificateArn}`)
+                     const details = descRes.Certificate
+                     return { 
+                         name: 'SSL Certificate', 
+                         type: 'Certificate', 
+                         id: certName, 
+                         status: 'Exists', 
+                         details: cert.Status,
+                         metadata: {
+                             DomainValidationOptions: details.DomainValidationOptions,
+                             Issuer: details.Issuer,
+                             Subject: details.Subject,
+                             NotBefore: details.NotBefore,
+                             NotAfter: details.NotAfter
+                         }
+                     }
+                 } catch (e) {
+                     console.warn('Failed to describe certificate', e)
+                     return { name: 'SSL Certificate', type: 'Certificate', id: certName, status: 'Exists', details: cert.Status }
+                 }
               } else {
                  return { name: 'SSL Certificate', type: 'Certificate', id: certName, status: 'Missing' }
               }
@@ -663,7 +684,18 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
                   if (dist?.DistributionConfig?.ViewerCertificate?.CloudFrontDefaultCertificate) {
                     details = 'Needs Custom Certificate'
                   }
-                  return { name: d.desc, type: 'CloudFront', id: d.id, status: 'Exists', details }
+                  
+                  return { 
+                      name: d.desc, 
+                      type: 'CloudFront', 
+                      id: d.id, 
+                      status: 'Exists', 
+                      details,
+                      metadata: {
+                          DomainName: dist.DomainName,
+                          Aliases: dist.DistributionConfig?.Aliases?.Items || []
+                      }
+                  }
               } catch (e: any) {
                   return { name: d.desc, type: 'CloudFront', id: d.id, status: 'Missing' }
               }

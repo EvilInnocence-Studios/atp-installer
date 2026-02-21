@@ -241,6 +241,7 @@ export interface AwsResourceStatus {
   id: string
   status: 'Exists' | 'Missing' | 'Error' | 'Loading'
   details?: string
+  metadata?: any
 }
 export interface MigrationStatus {
   initialized: boolean

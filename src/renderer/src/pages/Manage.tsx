@@ -24,6 +24,7 @@ import { useInstaller } from '../context/InstallerContext'
 import { AVAILABLE_MODULES, MigrationStatus, AwsResourceStatus } from '../../../shared/types'
 import { ModuleSelector } from '../components/ModuleSelector'
 import { ConfigDetails } from '../components/ConfigDetails'
+import { DomainRecordsModal } from '../components/modals/DomainRecordsModal'
 
 interface LogMessage {
     message: string
@@ -50,6 +51,7 @@ export function Manage(): JSX.Element {
     })
     const [refreshingDb, setRefreshingDb] = useState(false)
     const [showConfigModal, setShowConfigModal] = useState(false)
+    const [showDomainModal, setShowDomainModal] = useState(false)
 
     const logEndRef = useRef<HTMLDivElement>(null)
 
@@ -452,6 +454,18 @@ export function Manage(): JSX.Element {
                                         </button>
                                     ))}
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        setShowDomainModal(true)
+                                        if (!awsStatus) {
+                                            window.api.startCheckAwsStatus(config)
+                                        }
+                                    }}
+                                    className="w-full mt-2 bg-gray-800/50 hover:bg-gray-700 text-purple-400 border border-purple-500/20 hover:border-purple-500/50 font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+                                >
+                                    <Globe className="w-4 h-4" />
+                                    View Domain Records
+                                </button>
                             </div>
                         </div>
 
@@ -703,6 +717,13 @@ export function Manage(): JSX.Element {
                         </div>
                     </div>
                 )}
+
+                {/* Domain Records Modal */}
+                <DomainRecordsModal 
+                    isOpen={showDomainModal} 
+                    onClose={() => setShowDomainModal(false)} 
+                    awsStatus={awsStatus} 
+                />
 
                 {/* AWS Status Modal */}
                 {showAwsStatus && awsStatus && (
