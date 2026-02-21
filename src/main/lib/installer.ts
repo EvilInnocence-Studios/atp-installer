@@ -324,6 +324,20 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
             log(`Updated ${file} with new origin domain name.`, 'info')
           }
         }
+
+        // Update admin/src/config.local.ts
+        const adminConfigPath = join(adminPath, 'src/config.local.ts')
+        if (await fs.pathExists(adminConfigPath)) {
+          let content = await fs.readFile(adminConfigPath, 'utf-8')
+          const normalizedUrl = fullUrl.endsWith('/') ? fullUrl : `${fullUrl}/`
+          // Replace the URL in the second part of the ternary (the production URL)
+          const newContent = content.replace(/(\?\s*'http:\/\/localhost:3002\/'\s*:\s*)'.*?'/, `$1'${normalizedUrl}'`)
+          
+          if (content !== newContent) {
+            await fs.writeFile(adminConfigPath, newContent)
+            log(`Updated admin/src/config.local.ts with new Lambda URL.`, 'info')
+          }
+        }
       }
     }
 
