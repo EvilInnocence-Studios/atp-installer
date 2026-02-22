@@ -32,7 +32,8 @@ export function ConfigProject(): JSX.Element {
       updateConfig({
         publicDomain: `www.${domain}`,
         adminDomain: `admin.${domain}`,
-        apiDomain: `api.${domain}`
+        apiDomain: `api.${domain}`,
+        mediaDomain: `media.${domain}`
       })
     } else {
        // Clear or keep defaults? Let's clear to reflect emptyness or minimal valid state
@@ -41,7 +42,8 @@ export function ConfigProject(): JSX.Element {
        updateConfig({
         publicDomain: '',
         adminDomain: '',
-        apiDomain: ''
+        apiDomain: '',
+        mediaDomain: ''
       })
     }
   }
@@ -119,7 +121,7 @@ export function ConfigProject(): JSX.Element {
                   placeholder="example.com"
                   className="w-full bg-gray-800 text-white rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 />
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-500">
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-gray-500">
                   <div className="bg-gray-800/50 p-2 rounded border border-gray-700">
                     <span className="block text-gray-600 mb-1">Public Site</span>
                     <span className="text-gray-300">{config.publicDomain || 'www.example.com'}</span>
@@ -132,10 +134,14 @@ export function ConfigProject(): JSX.Element {
                     <span className="block text-gray-600 mb-1">API Endpoint</span>
                     <span className="text-gray-300">{config.apiDomain || 'api.example.com'}</span>
                   </div>
+                  <div className="bg-gray-800/50 p-2 rounded border border-gray-700">
+                    <span className="block text-gray-600 mb-1">Media Storage</span>
+                    <span className="text-gray-300">{config.mediaDomain || 'media.example.com'}</span>
+                  </div>
                 </div>
              </div>
            ) : (
-             <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div>
                    <label className="block text-xs text-gray-500 mb-1">Public Domain</label>
                    <input
@@ -163,6 +169,16 @@ export function ConfigProject(): JSX.Element {
                     value={config.apiDomain}
                     onChange={(e) => updateConfig({ apiDomain: e.target.value })}
                     placeholder="api.example.com"
+                    className="w-full bg-gray-800 text-white rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                   />
+                </div>
+                <div>
+                   <label className="block text-xs text-gray-500 mb-1">Media Domain</label>
+                   <input
+                    type="text"
+                    value={config.mediaDomain}
+                    onChange={(e) => updateConfig({ mediaDomain: e.target.value })}
+                    placeholder="media.example.com"
                     className="w-full bg-gray-800 text-white rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                    />
                 </div>

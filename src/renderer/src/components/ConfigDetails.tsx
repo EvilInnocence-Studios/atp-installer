@@ -21,6 +21,7 @@ export function ConfigDetails({ config }: { config: AppConfig }): JSX.Element {
           <Detail label="Public Domain" value={config.publicDomain} />
           <Detail label="Admin Domain" value={config.adminDomain} />
           <Detail label="API Domain" value={config.apiDomain} />
+          <Detail label="Media Domain" value={config.mediaDomain} />
         </div>
       </div>
 

@@ -28,7 +28,7 @@ export interface ICustomAPI {
 
 
 
-  startDeploy: (config: AppConfig, target?: 'api' | 'admin' | 'public' | 'all') => void
+  startDeploy: (config: AppConfig, target?: 'api' | 'admin' | 'public' | 'media' | 'all') => void
   onProjectConfigUpdated: (callback: (config: AppConfig) => void) => (() => void)
   onModuleSyncComplete: (callback: (success: boolean) => void) => (() => void)
   updateProjectModules: (config: AppConfig, newModules: string[]) => void

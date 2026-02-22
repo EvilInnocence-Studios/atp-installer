@@ -38,7 +38,8 @@ const initialConfig: AppConfig = {
   adminDomain: 'admin.example.com',
   publicDomain: 'www.example.com',
   apiDomain: 'api.example.com',
-  modules: ['core', 'common', 'uac'], // Defaults
+  mediaDomain: 'media.example.com',
+  modules: ['core', 'common', 'uac', 'media'], // Defaults
   advanced: {
     SALT: generateRandomString(32),
     SECRET: generateRandomString(32),
@@ -50,9 +51,11 @@ const initialConfig: AppConfig = {
     CERTIFICATE_NAME: '',
     AWS_BUCKET_ADMIN: '',
     AWS_BUCKET_PUBLIC: '',
+    AWS_BUCKET_MEDIA: '',
     CLOUDFRONT_DISTRIBUTION_ID_API: '',
     CLOUDFRONT_DISTRIBUTION_ID_ADMIN: '',
-    CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: ''
+    CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: '',
+    CLOUDFRONT_DISTRIBUTION_ID_MEDIA: ''
   },
   dbLocal: initialDbConfig,
 
@@ -143,7 +146,8 @@ export function InstallerProvider({ children }: { children: ReactNode }): JSX.El
            S3BUCKET: updates.advanced?.S3BUCKET ?? sanitizeBucketName(`${bucketProjectName}-deploy`),
            CERTIFICATE_NAME: updates.advanced?.CERTIFICATE_NAME ?? next.publicDomain,
            AWS_BUCKET_ADMIN: updates.advanced?.AWS_BUCKET_ADMIN ?? sanitizeBucketName(next.adminDomain),
-           AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? sanitizeBucketName(next.publicDomain)
+           AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? sanitizeBucketName(next.publicDomain),
+           AWS_BUCKET_MEDIA: updates.advanced?.AWS_BUCKET_MEDIA ?? sanitizeBucketName(next.mediaDomain)
          }
          
          // If project name changed, force update DB names

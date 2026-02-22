@@ -63,10 +63,20 @@ export async function runInstaller(config: AppConfig, win: BrowserWindow): Promi
        await runCommand('git clone https://github.com/EvilInnocence-Studios/atp-public.git public', projectRoot)
     }
 
+    // 4. Clone Media
+    const mediaPath = join(projectRoot, 'media')
+    if (await fs.pathExists(mediaPath)) {
+       log('Media directory already exists, skipping clone.', 'info')
+    } else {
+       log('Cloning Media...', 'info')
+       await runCommand('git clone https://github.com/EvilInnocence-Studios/atp-media.git media', projectRoot)
+    }
 
-    // 4. Create package.custom.json
-    const generateCustomJson = async (type: 'api' | 'admin' | 'public', targetPath: string): Promise<void> => {
-       const customModules: Record<string, { repo: string, branch: string }> = {}
+
+     // 4. Create package.custom.json
+     const generateCustomJson = async (type: 'api' | 'admin' | 'public' | 'media', targetPath: string): Promise<void> => {
+        if (type === 'media') return // Media is a stub, no custom modules
+        const customModules: Record<string, { repo: string, branch: string }> = {}
        
        // Always include the modules
        // We iterate over selected config modules
@@ -158,7 +168,13 @@ API_URL=https://${config.apiDomain}/
 CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC || ''}
 `
     await fs.writeFile(join(publicPath, '.env'), publicEnvContent)
-
+ 
+     // Media .env
+     const mediaEnvContent = `AWS_BUCKET=${config.advanced.AWS_BUCKET_MEDIA || ''}
+ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_MEDIA || ''}
+ `
+     await fs.writeFile(join(mediaPath, '.env'), mediaEnvContent)
+ 
     // 5b. Create config.local.ts for Admin and Public
     log('Creating config.local.ts...', 'info')
     const configLocalContent = `export const localConfig = {
@@ -225,10 +241,13 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC |
     await runCommand('yarn install', adminPath)
     await runCommand('yarn install-custom', adminPath)
 
-    log('Installing Public dependencies...', 'info')
-    await runCommand('yarn install', publicPath)
-    await runCommand('yarn install-custom', publicPath)
-
+     log('Installing Public dependencies...', 'info')
+     await runCommand('yarn install', publicPath)
+     await runCommand('yarn install-custom', publicPath)
+ 
+     log('Installing Media dependencies...', 'info')
+     await runCommand('yarn install', mediaPath)
+ 
     // log('Setting up databases...', 'info')
     // await runCommand('yarn setupDb --env=local --yes', apiPath)
 
@@ -241,7 +260,7 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC |
   }
 }
 
-export async function deployToAws(config: AppConfig, win: BrowserWindow, target: 'api' | 'admin' | 'public' | 'all' = 'all'): Promise<void> {
+export async function deployToAws(config: AppConfig, win: BrowserWindow, target: 'api' | 'admin' | 'public' | 'media' | 'all' = 'all'): Promise<void> {
 
   const log = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     win.webContents.send('install-log', { message, type })
@@ -284,6 +303,10 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
     if (config.advanced.AWS_BUCKET_PUBLIC) {
       log(`Checking S3 Bucket (Public): ${config.advanced.AWS_BUCKET_PUBLIC}...`, 'info')
       await ensureS3Bucket(config.advanced.AWS_BUCKET_PUBLIC, options)
+    }
+    if (config.advanced.AWS_BUCKET_MEDIA) {
+      log(`Checking S3 Bucket (Media): ${config.advanced.AWS_BUCKET_MEDIA}...`, 'info')
+      await ensureS3Bucket(config.advanced.AWS_BUCKET_MEDIA, options)
     }
     if (config.advanced.LAMBDA_ROLE) {
       log(`Checking IAM Role: ${config.advanced.LAMBDA_ROLE}...`, 'info')
@@ -351,6 +374,11 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
       await runCommand('yarn deploy', publicPath)
     }
 
+    if (target === 'all' || target === 'media') {
+      log('Deploying Media...', 'info')
+      const mediaPath = join(projectRoot, 'media')
+      await runCommand('yarn deploy', mediaPath)
+    }
     log('Deployment Complete!', 'success')
     win.webContents.send('deploy-complete', true)
 
@@ -391,7 +419,7 @@ export async function updateProjectModules(config: AppConfig, newModules: string
     log(`Syncing modules...`, 'info')
     
     const projectRoot = join(config.destination, config.projectName)
-    const projects: ('api' | 'admin' | 'public')[] = ['api', 'admin', 'public']
+    const projects: ('api' | 'admin' | 'public' | 'media')[] = ['api', 'admin', 'public', 'media']
     
     const oldModules = config.modules
     const added = newModules.filter(m => !oldModules.includes(m))
@@ -486,6 +514,7 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
      const apiPath = join(projectPath, 'api')
      const adminPath = join(projectPath, 'admin')
      const publicPath = join(projectPath, 'public')
+     const mediaPath = join(projectPath, 'media')
 
      const apiEnv = await fs.readFile(join(apiPath, '.env'), 'utf-8').then(parseEnv).catch(() => ({} as Record<string, string>))
      const apiEnvProd = await fs.readFile(join(apiPath, '.env.prod'), 'utf-8').then(parseEnv).catch(() => ({} as Record<string, string>))
@@ -494,6 +523,9 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
      })
      const publicEnv = await fs.readFile(join(publicPath, '.env'), 'utf-8').then(parseEnv).catch((e) => {
          console.warn('Failed to read public .env', e); return {} as Record<string, string>
+     })
+     const mediaEnv = await fs.readFile(join(mediaPath, '.env'), 'utf-8').then(parseEnv).catch((e) => {
+         console.warn('Failed to read media .env', e); return {} as Record<string, string>
      })
 
      const modules: string[] = ['core', 'admin', 'public'] // Defaults
@@ -523,6 +555,7 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
         adminDomain: cleanDomain(apiEnvProd['HOST_ADMIN']) || apiEnv['ADMIN_DOMAIN'] || '',
         publicDomain: cleanDomain(apiEnvProd['HOST_PUBLIC']) || apiEnv['PUBLIC_DOMAIN'] || '',
         apiDomain: cleanDomain(apiEnvProd['HOST_API']) || apiEnv['API_DOMAIN'] || '',
+        mediaDomain: cleanDomain(apiEnvProd['HOST_MEDIA']) || apiEnv['MEDIA_DOMAIN'] || '',
         modules: uniqueModules,
         awsProfile: apiEnv['AWS_PROFILE'] || 'default',
         awsRegion: 'us-east-1',
@@ -555,9 +588,11 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
             ALTERNATE_DOMAIN_NAMES: apiEnv['ALTERNATE_DOMAIN_NAMES'] || apiEnv['ALTERNATE_DOMAIN_NAME'] || apiEnvProd['ALTERNATE_DOMAIN_NAMES'] || apiEnvProd['ALTERNATE_DOMAIN_NAME'] || '',
             AWS_BUCKET_ADMIN: adminEnv['AWS_BUCKET'] || '',
             AWS_BUCKET_PUBLIC: publicEnv['AWS_BUCKET'] || '',
+            AWS_BUCKET_MEDIA: mediaEnv['AWS_BUCKET'] || '',
             CLOUDFRONT_DISTRIBUTION_ID_API: apiEnv['CLOUDFRONT_DISTRIBUTION_ID'] || apiEnvProd['CLOUDFRONT_DISTRIBUTION_ID'] || '',
             CLOUDFRONT_DISTRIBUTION_ID_ADMIN: adminEnv['CLOUDFRONT_DISTRIBUTION_ID'] || '',
-            CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: publicEnv['CLOUDFRONT_DISTRIBUTION_ID'] || ''
+            CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: publicEnv['CLOUDFRONT_DISTRIBUTION_ID'] || '',
+            CLOUDFRONT_DISTRIBUTION_ID_MEDIA: mediaEnv['CLOUDFRONT_DISTRIBUTION_ID'] || ''
         }
      }
 
@@ -591,7 +626,8 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
   const buckets = [
      { key: 'S3BUCKET', name: config.advanced.S3BUCKET, desc: 'Deployment Bucket' },
      { key: 'AWS_BUCKET_ADMIN', name: config.advanced.AWS_BUCKET_ADMIN, desc: 'Admin Site Bucket' },
-     { key: 'AWS_BUCKET_PUBLIC', name: config.advanced.AWS_BUCKET_PUBLIC, desc: 'Public Site Bucket' }
+     { key: 'AWS_BUCKET_PUBLIC', name: config.advanced.AWS_BUCKET_PUBLIC, desc: 'Public Site Bucket' },
+     { key: 'AWS_BUCKET_MEDIA', name: config.advanced.AWS_BUCKET_MEDIA, desc: 'Media Site Bucket' }
   ]
   buckets.forEach(b => {
       checks.push({
@@ -684,7 +720,8 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
   const distIds = [
       { key: 'CLOUDFRONT_DISTRIBUTION_ID_API', id: config.advanced.CLOUDFRONT_DISTRIBUTION_ID_API, desc: 'API Distribution' },
       { key: 'CLOUDFRONT_DISTRIBUTION_ID_ADMIN', id: config.advanced.CLOUDFRONT_DISTRIBUTION_ID_ADMIN, desc: 'Admin Distribution' },
-      { key: 'CLOUDFRONT_DISTRIBUTION_ID_PUBLIC', id: config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC, desc: 'Public Distribution' }
+      { key: 'CLOUDFRONT_DISTRIBUTION_ID_PUBLIC', id: config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC, desc: 'Public Distribution' },
+      { key: 'CLOUDFRONT_DISTRIBUTION_ID_MEDIA', id: config.advanced.CLOUDFRONT_DISTRIBUTION_ID_MEDIA, desc: 'Media Distribution' }
   ]
   distIds.forEach(d => {
       checks.push({

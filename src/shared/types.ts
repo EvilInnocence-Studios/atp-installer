@@ -14,6 +14,7 @@ export interface AppConfig {
   adminDomain: string
   publicDomain: string
   apiDomain: string
+  mediaDomain: string
   modules: string[]
   advanced: Record<string, string>
 
@@ -40,7 +41,7 @@ export interface Repo {
   repoName: string
 }
 
-type Project = 'api' | 'admin' | 'public'
+type Project = 'api' | 'admin' | 'public' | 'media'
 
 export interface Module {
   id: string
@@ -66,7 +67,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-core-ui.git', branch: 'main', repoName: 'core' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-core-shared.git', branch: 'main', repoName: 'core-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -83,7 +85,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-common-ui.git', branch: 'main', repoName: 'common' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-common-shared.git', branch: 'main', repoName: 'common-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -100,7 +103,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-uac-ui.git', branch: 'main', repoName: 'uac' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-uac-shared.git', branch: 'main', repoName: 'uac-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -108,7 +112,8 @@ export const AVAILABLE_MODULES: Module[] = [
     repos: {
       api: [],
       admin: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
-      public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }]
+      public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
+      media: []
     }
   },
   
@@ -118,7 +123,8 @@ export const AVAILABLE_MODULES: Module[] = [
     repos: {
       api: [],
       admin: [{ url: 'https://github.com/EvilInnocence-Studios/atp-admin-core.git', branch: 'main', repoName: 'admin' }],
-      public: []
+      public: [],
+      media: []
     }
   },
   {
@@ -126,7 +132,17 @@ export const AVAILABLE_MODULES: Module[] = [
     repos: {
       api: [],
       admin: [],
-      public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-public-core.git', branch: 'main', repoName: 'public' }]
+      public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-public-core.git', branch: 'main', repoName: 'public' }],
+      media: []
+    }
+  },
+  {
+    id: 'media', name: 'Media Storage', description: 'Stub project for managing media S3 bucket and CloudFront.', required: true,
+    repos: {
+      api: [],
+      admin: [],
+      public: [],
+      media: [{ url: 'https://github.com/EvilInnocence-Studios/atp-media.git', branch: 'main', repoName: 'media' }]
     }
   },
 
@@ -145,7 +161,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-store-ui.git', branch: 'main', repoName: 'store' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-store-shared.git', branch: 'main', repoName: 'store-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -163,7 +180,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-brokered-products-plugin-ui.git', branch: 'main', repoName: 'brokered-products-plugin' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-brokered-products-plugin-shared.git', branch: 'main', repoName: 'brokered-products-plugin-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -181,7 +199,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-donation-products-plugin-ui.git', branch: 'main', repoName: 'donation-products-plugin' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-donation-products-plugin-shared.git', branch: 'main', repoName: 'donation-products-plugin-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -198,7 +217,8 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-subscription-ui.git', branch: 'main', repoName: 'subscription' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-subscription-shared.git', branch: 'main', repoName: 'subscription-shared' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -213,7 +233,8 @@ export const AVAILABLE_MODULES: Module[] = [
       ],
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-subscription-products-plugin-ui.git', branch: 'main', repoName: 'subscription-products-plugin' }
-      ]
+      ],
+      media: []
     }
   },
   {
@@ -230,7 +251,8 @@ export const AVAILABLE_MODULES: Module[] = [
        public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-comic-ui.git', branch: 'main', repoName: 'comic' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-comic-shared.git', branch: 'main', repoName: 'comic-shared' }
-       ]
+       ],
+      media: []
     }
   }
 ]

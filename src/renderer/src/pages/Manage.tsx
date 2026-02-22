@@ -38,7 +38,7 @@ export function Manage(): JSX.Element {
     const [awsStatus, setAwsStatus] = useState<AwsResourceStatus[] | null>(null)
     const [showAwsStatus, setShowAwsStatus] = useState(false)
     const [fixing, setFixing] = useState<string | null>(null)
-    const [deploying, setDeploying] = useState<'api' | 'admin' | 'public' | 'all' | null>(null)
+    const [deploying, setDeploying] = useState<'api' | 'admin' | 'public' | 'media' | 'all' | null>(null)
     const [dbHealthLocal, setDbHealthLocal] = useState<MigrationStatus>({ initialized: false, reason: 'Checking...' })
     const [dbHealthProd, setDbHealthProd] = useState<MigrationStatus>({ initialized: false, reason: 'Checking...' })
     const [showModulesModal, setShowModulesModal] = useState(false)
@@ -183,7 +183,7 @@ export function Manage(): JSX.Element {
         }
     }
 
-    const handleDeployProject = async (target: 'api' | 'admin' | 'public' | 'all') => {
+    const handleDeployProject = async (target: 'api' | 'admin' | 'public' | 'media' | 'all') => {
         setDeploying(target)
         setLogs(prev => [...prev, { message: `Starting deployment for: ${target}`, type: 'info', timestamp: new Date().toLocaleTimeString() }])
         window.api.startDeploy(config, target)
@@ -216,6 +216,9 @@ export function Manage(): JSX.Element {
                 } else if (item.name === 'Public Distribution') {
                     projectPath = `${config.destination}/${config.projectName}/public`
                     alternateDomain = config.publicDomain
+                } else if (item.name === 'Media Distribution') {
+                    projectPath = `${config.destination}/${config.projectName}/media`
+                    alternateDomain = config.mediaDomain
                 }
 
                 if (projectPath) {
@@ -233,6 +236,8 @@ export function Manage(): JSX.Element {
                         env.AWS_BUCKET = config.advanced.AWS_BUCKET_ADMIN || ''
                     } else if (item.name === 'Public Distribution') {
                         env.AWS_BUCKET = config.advanced.AWS_BUCKET_PUBLIC || ''
+                    } else if (item.name === 'Media Distribution') {
+                        env.AWS_BUCKET = config.advanced.AWS_BUCKET_MEDIA || ''
                     }
 
                     await window.api.ensureCloudFrontDistribution(projectPath, env)
@@ -352,7 +357,7 @@ export function Manage(): JSX.Element {
                             Site Configuration Summary
                         </h2>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
                         <div>
                             <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Public Domain</div>
                             <div className="text-sm text-white font-medium truncate" title={config.publicDomain}>{config.publicDomain}</div>
@@ -364,6 +369,10 @@ export function Manage(): JSX.Element {
                         <div>
                             <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">API Domain</div>
                             <div className="text-sm text-white font-medium truncate" title={config.apiDomain}>{config.apiDomain}</div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Media Domain</div>
+                            <div className="text-sm text-white font-medium truncate" title={config.mediaDomain}>{config.mediaDomain}</div>
                         </div>
                         <div>
                             <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">AWS Region</div>
@@ -443,7 +452,7 @@ export function Manage(): JSX.Element {
                                     {deploying === 'all' ? 'Deploying Everything...' : 'Deploy All Projects'}
                                 </button>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {(['api', 'admin', 'public'] as const).map(target => (
+                                    {(['api', 'admin', 'public', 'media'] as const).map(target => (
                                         <button
                                             key={target}
                                             onClick={() => handleDeployProject(target)}
@@ -748,7 +757,8 @@ export function Manage(): JSX.Element {
                                             'API Lambda': ['Lambda Role', 'Deployment Bucket'],
                                             'API Distribution': ['API Lambda', 'SSL Certificate'],
                                             'Admin Distribution': ['Admin Site Bucket', 'SSL Certificate'],
-                                            'Public Distribution': ['Public Site Bucket', 'SSL Certificate']
+                                            'Public Distribution': ['Public Site Bucket', 'SSL Certificate'],
+                                            'Media Distribution': ['Media Site Bucket', 'SSL Certificate']
                                         }
 
                                         return awsStatus.map((item, idx) => {
