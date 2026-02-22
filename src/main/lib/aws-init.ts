@@ -52,6 +52,22 @@ export async function ensureS3Bucket(bucketName: string, options: AwsInitOptions
   }
   const policyStr = JSON.stringify(policy).replace(/"/g, '\\"')
   await runAws(`s3api put-bucket-policy --bucket ${bucketName} --policy "${policyStr}"`, options)
+
+  // 4. Configure CORS for direct browser uploads
+  console.log(`Configuring CORS for bucket ${bucketName}...`)
+  const corsConfig = {
+    CORSRules: [
+      {
+        AllowedHeaders: ["*"],
+        AllowedMethods: ["GET", "PUT", "POST", "HEAD"],
+        AllowedOrigins: ["*"],
+        ExposeHeaders: ["ETag"],
+        MaxAgeSeconds: 3000
+      }
+    ]
+  }
+  const corsStr = JSON.stringify(corsConfig).replace(/"/g, '\\"')
+  await runAws(`s3api put-bucket-cors --bucket ${bucketName} --cors-configuration "${corsStr}"`, options)
 }
 
 /**
