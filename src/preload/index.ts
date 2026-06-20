@@ -29,6 +29,13 @@ const api = {
 
 
   startDeploy: (config: any, target?: string) => ipcRenderer.send('start-deploy', config, target),
+  startDeployAllInfrastructure: (config: any) => ipcRenderer.send('start-deploy-all-infrastructure', config),
+  continueDeployAllInfrastructure: (shouldContinue: boolean) => ipcRenderer.send('continue-deploy-all-infrastructure', shouldContinue),
+  onDeployAllCertPending: (callback: (options: any[]) => void) => {
+    const subscription = (_event: any, value: any) => callback(value)
+    ipcRenderer.on('deploy-all-cert-pending', subscription)
+    return () => ipcRenderer.removeListener('deploy-all-cert-pending', subscription)
+  },
   onLog: (callback: (log: any) => void) => {
     const subscription = (_event: any, value: any) => callback(value)
     ipcRenderer.on('install-log', subscription)

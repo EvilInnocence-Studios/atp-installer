@@ -209,6 +209,14 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.on('start-deploy-all-infrastructure', async (event, config: AppConfig) => {
+    const { deployAllInfrastructure } = await import('./lib/installer')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      deployAllInfrastructure(config, win)
+    }
+  })
+
   ipcMain.on('start-check-aws-status', async (event, config: AppConfig) => {
     const { checkAwsStatus } = await import('./lib/installer')
     const win = BrowserWindow.fromWebContents(event.sender)

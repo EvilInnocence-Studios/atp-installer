@@ -1,7 +1,7 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { join } from 'path'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import * as fs from 'fs-extra'
 // import { AppConfig } from '../../shared/types' // Import via absolute path or relative? 
 // The shared folder is outside src/main in the file structure I envisioned? No, it's `src/shared`.
@@ -275,7 +275,7 @@ CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
   }
 }
 
-export async function deployToAws(config: AppConfig, win: BrowserWindow, target: 'api' | 'admin' | 'public' | 'media' | 'all' = 'all'): Promise<void> {
+export async function deployToAws(config: AppConfig, win: BrowserWindow, target: 'api' | 'admin' | 'public' | 'media' | 'all' = 'all', emitComplete = true): Promise<void> {
 
   const log = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     win.webContents.send('install-log', { message, type })
@@ -410,12 +410,15 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
       const mediaPath = join(projectRoot, 'media')
       await runCommand('yarn deploy', mediaPath)
     }
-    log('Deployment Complete!', 'success')
-    win.webContents.send('deploy-complete', true)
+    if (emitComplete) {
+        log('Deployment Complete!', 'success')
+        win.webContents.send('deploy-complete', true)
+    }
 
   } catch (error) {
     log(`Deployment failed: ${(error as Error).message}`, 'error')
-    win.webContents.send('deploy-complete', false)
+    if (emitComplete) win.webContents.send('deploy-complete', false)
+    throw error
   }
 }
 
@@ -967,5 +970,104 @@ export async function runDbSetup(config: AppConfig, win: BrowserWindow, env: 'lo
   } catch (err) {
     log(`${env} database initialization failed: ${(err as Error).message}`, 'error')
     return false
+  }
+}
+
+export async function deployAllInfrastructure(config: AppConfig, win: BrowserWindow): Promise<void> {
+  const log = (message: string, type: 'info' | 'error' | 'success' | 'warning' = 'info'): void => {
+    win.webContents.send('install-log', { message, type })
+  }
+
+  try {
+    log('Starting Full Infrastructure Deployment...', 'info')
+    
+    // 1. Deploy API (this ensures S3, IAM, Cert, and deploys Lambda)
+    log('Phase 1 & 2: Provisioning AWS resources and deploying API Lambda...', 'info')
+    await deployToAws(config, win, 'api', false)
+
+    // 2. Interactive Certificate Validation
+    log('Phase 3: Checking SSL Certificate Status...', 'info')
+    const profile = config.awsProfile
+    
+    const runAwsAcm = async (cmd: string): Promise<any> => {
+       const { stdout } = await execAsync(`aws ${cmd} --profile ${profile} --region us-east-1 --output json`)
+       return JSON.parse(stdout)
+    }
+
+    const certName = config.advanced.CERTIFICATE_NAME
+    if (certName) {
+      let isIssued = false
+      while (!isIssued) {
+        const res = await runAwsAcm(`acm list-certificates`)
+        const cert = res.CertificateSummaryList?.find((c: any) => c.DomainName === certName)
+        
+        if (!cert) {
+           log(`Warning: Could not find certificate for ${certName}. Skipping distributions.`, 'warning')
+           break
+        }
+
+        if (cert.Status === 'ISSUED') {
+           isIssued = true
+           log(`SSL Certificate for ${certName} is ISSUED.`, 'success')
+           break
+        } else if (cert.Status === 'PENDING_VALIDATION') {
+           log(`SSL Certificate is PENDING_VALIDATION. Pausing deployment...`, 'warning')
+           const descRes = await runAwsAcm(`acm describe-certificate --certificate-arn ${cert.CertificateArn}`)
+           const options = descRes.Certificate?.DomainValidationOptions || []
+
+           // Emit event and wait
+           win.webContents.send('deploy-all-cert-pending', options)
+
+           const shouldContinue = await new Promise<boolean>((resolve) => {
+               ipcMain.once('continue-deploy-all-infrastructure', (_event, val: boolean) => {
+                   resolve(val)
+               })
+           })
+
+           if (!shouldContinue) {
+               log('Deployment aborted by user during certificate validation.', 'error')
+               win.webContents.send('deploy-complete', false)
+               return
+           }
+           log('Re-checking certificate status...', 'info')
+        } else {
+           log(`SSL Certificate is in state: ${cert.Status}. Skipping distributions.`, 'error')
+           break
+        }
+      }
+    }
+
+    // 3. CloudFront Distributions
+    log('Phase 4: Creating CloudFront Distributions...', 'info')
+    const { ensureCloudFrontDistribution } = await import('./aws-init')
+    const projectRoot = join(config.destination, config.projectName)
+
+    const deployDist = async (project: 'api'|'admin'|'public'|'media', alternateDomain: string) => {
+        const projectPath = join(projectRoot, project)
+        if (!await fs.pathExists(projectPath)) return
+
+        const env: Record<string, string> = {
+            ALTERNATE_DOMAIN_NAME: alternateDomain,
+            CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
+            LAMBDA_FUNCTION_NAME: project === 'api' ? config.advanced.LAMBDA_FUNCTION_NAME || '' : '',
+            AWS_PROFILE: config.awsProfile,
+            AWS_REGION: config.awsRegion
+        }
+        
+        log(`Deploying CloudFront Distribution for ${project}...`, 'info')
+        await ensureCloudFrontDistribution(projectPath, env)
+    }
+
+    await deployDist('api', config.apiDomain)
+    await deployDist('admin', config.adminDomain)
+    await deployDist('public', config.publicDomain)
+    await deployDist('media', config.mediaDomain)
+
+    log('All Infrastructure Deployed Successfully!', 'success')
+    win.webContents.send('deploy-complete', true)
+
+  } catch (error) {
+    log(`Deployment failed: ${(error as Error).message}`, 'error')
+    win.webContents.send('deploy-complete', false)
   }
 }

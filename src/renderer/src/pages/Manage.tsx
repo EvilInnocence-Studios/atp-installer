@@ -27,6 +27,7 @@ import { AVAILABLE_MODULES, MigrationStatus, AwsResourceStatus } from '../../../
 import { ModuleSelector } from '../components/ModuleSelector'
 import { ConfigDetails } from '../components/ConfigDetails'
 import { DomainRecordsModal } from '../components/modals/DomainRecordsModal'
+import { DeployAllCertModal } from '../components/modals/DeployAllCertModal'
 
 interface LogMessage {
     message: string
@@ -55,6 +56,8 @@ export function Manage(): JSX.Element {
     const [refreshingDb, setRefreshingDb] = useState(false)
     const [showConfigModal, setShowConfigModal] = useState(false)
     const [showDomainModal, setShowDomainModal] = useState(false)
+    const [showDeployAllCertModal, setShowDeployAllCertModal] = useState(false)
+    const [deployAllCertRecords, setDeployAllCertRecords] = useState<any[]>([])
 
     const logEndRef = useRef<HTMLDivElement>(null)
 
@@ -120,12 +123,18 @@ export function Manage(): JSX.Element {
             }
         })
 
+        const unsubCertPending = window.api.onDeployAllCertPending((records: any[]) => {
+            setDeployAllCertRecords(records)
+            setShowDeployAllCertModal(true)
+        })
+
         return () => {
             clearInterval(interval)
             unsubLog()
             unsubInit()
             unsubUpdate()
             unsubDeployComplete()
+            unsubCertPending()
         }
     }, [config])
 
@@ -190,6 +199,12 @@ export function Manage(): JSX.Element {
         setDeploying(target)
         setLogs(prev => [...prev, { message: `Starting deployment for: ${target}`, type: 'info', timestamp: new Date().toLocaleTimeString() }])
         window.api.startDeploy(config, target)
+    }
+
+    const handleDeployAllInfrastructure = () => {
+        setDeploying('all')
+        setLogs(prev => [...prev, { message: `Starting complete infrastructure provisioning and deployment...`, type: 'info', timestamp: new Date().toLocaleTimeString() }])
+        window.api.startDeployAllInfrastructure(config)
     }
 
     const handleOpenAwsStatus = () => {
@@ -448,12 +463,20 @@ export function Manage(): JSX.Element {
                             </div>
                             <div className="grid grid-cols-1 gap-3">
                                 <button
+                                    onClick={handleDeployAllInfrastructure}
+                                    disabled={!!deploying}
+                                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold py-3 rounded-lg transition-all shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2 mb-2"
+                                >
+                                    {deploying === 'all' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Cloud className="w-5 h-5" />}
+                                    {deploying === 'all' ? 'Deploying Everything...' : 'Deploy Entire Infrastructure & Code'}
+                                </button>
+                                <button
                                     onClick={() => handleDeployProject('all')}
                                     disabled={!!deploying}
-                                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold py-3 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+                                    className="w-full bg-blue-600/50 hover:bg-blue-500/50 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold py-2 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
                                 >
-                                    {deploying === 'all' ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-                                    {deploying === 'all' ? 'Deploying Everything...' : 'Deploy All Projects'}
+                                    <Play className="w-4 h-4" />
+                                    Update All Project Code Only
                                 </button>
                                 <div className="grid grid-cols-3 gap-2">
                                     {(['api', 'admin', 'public', 'media'] as const).map(target => (
@@ -736,6 +759,20 @@ export function Manage(): JSX.Element {
                     isOpen={showDomainModal} 
                     onClose={() => setShowDomainModal(false)} 
                     awsStatus={awsStatus} 
+                />
+
+                {/* Deploy All Cert Validation Modal */}
+                <DeployAllCertModal
+                    isOpen={showDeployAllCertModal}
+                    validationOptions={deployAllCertRecords}
+                    onContinue={() => {
+                        setShowDeployAllCertModal(false)
+                        window.api.continueDeployAllInfrastructure(true)
+                    }}
+                    onCancel={() => {
+                        setShowDeployAllCertModal(false)
+                        window.api.continueDeployAllInfrastructure(false)
+                    }}
                 />
 
                 {/* AWS Status Modal */}
