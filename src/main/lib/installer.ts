@@ -1063,6 +1063,32 @@ export async function deployAllInfrastructure(config: AppConfig, win: BrowserWin
     await deployDist('public', config.publicDomain)
     await deployDist('media', config.mediaDomain)
 
+    // 5. Deploy Site Code (Admin, Public, Media)
+    log('Phase 5: Deploying Admin and public code...', 'info')
+    
+    const runCommand = async (command: string, cwd: string): Promise<void> => {
+      log(`Running: ${command} in ${cwd}`, 'info')
+      try {
+        const { stdout } = await execAsync(command, { cwd })
+        stdout.split('\n').forEach(line => {
+          if (line.trim()) log(line.trim(), 'info')
+        })
+      } catch (error) {
+         log(`Error running ${command}: ${(error as Error).message}`, 'error')
+         throw error
+      }
+    }
+
+    if (await fs.pathExists(join(projectRoot, 'admin'))) {
+      log('Deploying Admin site code...', 'info')
+      await runCommand('yarn deploy', join(projectRoot, 'admin'))
+    }
+    
+    if (await fs.pathExists(join(projectRoot, 'public'))) {
+      log('Deploying Public site code...', 'info')
+      await runCommand('yarn deploy', join(projectRoot, 'public'))
+    }
+
     log('All Infrastructure Deployed Successfully!', 'success')
     win.webContents.send('deploy-complete', true)
 
