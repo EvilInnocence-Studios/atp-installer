@@ -8,6 +8,7 @@ export interface CheckResult {
 }
 
 export interface AppConfig {
+  siteName: string
   projectName: string
   destination: string
   // Domain Configurations
@@ -68,7 +69,9 @@ export const AVAILABLE_MODULES: Module[] = [
         { url: 'https://github.com/EvilInnocence-Studios/atp-core-ui.git', branch: 'main', repoName: 'core' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-core-shared.git', branch: 'main', repoName: 'core-shared' }
       ],
-      media: []
+      media: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-core-shared.git', branch: 'main', repoName: 'core-shared' }
+      ]
     }
   },
   {
@@ -113,6 +116,24 @@ export const AVAILABLE_MODULES: Module[] = [
       api: [],
       admin: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
       public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
+      media: []
+    }
+  },
+  {
+    id: "analytics", name: "Analytics", description: "Analytics system for tracking website traffic and user behavior.", required: true,
+    repos: {
+      api: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-api.git', branch: 'main', repoName: 'analytics' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-shared.git', branch: 'main', repoName: 'analytics-shared' }
+      ],
+      admin: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-ui.git', branch: 'main', repoName: 'analytics' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-shared.git', branch: 'main', repoName: 'analytics-shared' }
+      ],
+      public: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-ui.git', branch: 'main', repoName: 'analytics' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-analytics-shared.git', branch: 'main', repoName: 'analytics-shared' }
+      ],
       media: []
     }
   },
@@ -161,6 +182,24 @@ export const AVAILABLE_MODULES: Module[] = [
       public: [
         { url: 'https://github.com/EvilInnocence-Studios/atp-store-ui.git', branch: 'main', repoName: 'store' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-store-shared.git', branch: 'main', repoName: 'store-shared' }
+      ],
+      media: []
+    }
+  },
+  {
+    id: "gallery", name: "Gallery", description: "Gallery for displaying images.",
+    repos: {
+      api: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-api.git', branch: 'main', repoName: 'gallery' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-shared.git', branch: 'main', repoName: 'gallery-shared' }
+      ],
+      admin: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-ui.git', branch: 'main', repoName: 'gallery' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-shared.git', branch: 'main', repoName: 'gallery-shared' }
+      ],
+      public: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-ui.git', branch: 'main', repoName: 'gallery' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-gallery-shared.git', branch: 'main', repoName: 'gallery-shared' }
       ],
       media: []
     }
@@ -252,6 +291,19 @@ export const AVAILABLE_MODULES: Module[] = [
         { url: 'https://github.com/EvilInnocence-Studios/atp-comic-ui.git', branch: 'main', repoName: 'comic' },
         { url: 'https://github.com/EvilInnocence-Studios/atp-comic-shared.git', branch: 'main', repoName: 'comic-shared' }
        ],
+      media: []
+    }
+  },
+  {
+    id: "comicad", name: "ComicAd Ads", description: "ComicAd ads management and display.", required: false,
+    repos: {
+      api: [],
+      admin: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-comicad-ui.git', branch: 'main', repoName: 'comicad' },
+      ],
+      public: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-comicad-ui.git', branch: 'main', repoName: 'comicad' },
+      ],
       media: []
     }
   }

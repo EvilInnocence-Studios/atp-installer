@@ -186,5 +186,22 @@ export async function ensureCloudFrontDistribution(apiPath: string, env: Record<
         console.log(`Updated ${file} with Distribution ID ${distributionId}`)
       }
     }
+
+    if (env.LAMBDA_FUNCTION_NAME) {
+      try {
+        console.log(`Updating Lambda ${env.LAMBDA_FUNCTION_NAME} environment variables with Distribution ID...`)
+        const getConf = await execAsync(`aws lambda get-function-configuration --function-name ${env.LAMBDA_FUNCTION_NAME} --profile ${env.AWS_PROFILE} --region ${env.AWS_REGION} --output json`)
+        const lambdaConfig = JSON.parse(getConf.stdout)
+        const variables = lambdaConfig.Environment?.Variables || {}
+        variables.CLOUDFRONT_DISTRIBUTION_ID = distributionId
+        
+        const varsStr = Object.entries(variables).map(([k, v]) => `${k}="${v}"`).join(',')
+        
+        await execAsync(`aws lambda update-function-configuration --function-name ${env.LAMBDA_FUNCTION_NAME} --environment "Variables={${varsStr}}" --profile ${env.AWS_PROFILE} --region ${env.AWS_REGION}`)
+        console.log(`Successfully updated Lambda ${env.LAMBDA_FUNCTION_NAME} environment.`)
+      } catch (e: any) {
+        console.error(`Failed to update Lambda environment variables: ${e.message}`)
+      }
+    }
   }
 }

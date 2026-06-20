@@ -18,7 +18,9 @@ import {
     Server,
     ClipboardList,
     Globe,
-    Info
+    Info,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react'
 import { useInstaller } from '../context/InstallerContext'
 import { AVAILABLE_MODULES, MigrationStatus, AwsResourceStatus } from '../../../shared/types'
@@ -37,6 +39,7 @@ export function Manage(): JSX.Element {
     const [logs, setLogs] = useState<LogMessage[]>([])
     const [awsStatus, setAwsStatus] = useState<AwsResourceStatus[] | null>(null)
     const [showAwsStatus, setShowAwsStatus] = useState(false)
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
     const [fixing, setFixing] = useState<string | null>(null)
     const [deploying, setDeploying] = useState<'api' | 'admin' | 'public' | 'media' | 'all' | null>(null)
     const [dbHealthLocal, setDbHealthLocal] = useState<MigrationStatus>({ initialized: false, reason: 'Checking...' })
@@ -223,9 +226,10 @@ export function Manage(): JSX.Element {
 
                 if (projectPath) {
                     const env: Record<string, string> = {
-                        ALTERNATE_DOMAIN_NAMES: alternateDomain,
+                        ALTERNATE_DOMAIN_NAME: alternateDomain,
                         CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
                         CLOUDFRONT_DISTRIBUTION_ID: item.id !== 'Not Configured' ? item.id : '',
+                        LAMBDA_FUNCTION_NAME: config.advanced.LAMBDA_FUNCTION_NAME || '',
                         AWS_PROFILE: config.awsProfile,
                         AWS_REGION: config.awsRegion
                     }
@@ -761,77 +765,152 @@ export function Manage(): JSX.Element {
                                             'Media Distribution': ['Media Site Bucket', 'SSL Certificate']
                                         }
 
-                                        return awsStatus.map((item, idx) => {
-                                            const missingDeps = (AWS_DEPENDENCIES[item.name] || []).filter(depName => {
-                                                const dep = awsStatus!.find(s => s.name === depName)
-                                                return !dep || dep.status !== 'Exists'
-                                            })
-                                            const hasMissingDeps = missingDeps.length > 0
+                                        const groups: Record<string, AwsResourceStatus[]> = {
+                                            'Global Resources': [],
+                                            'API Service': [],
+                                            'Admin Panel': [],
+                                            'Public Site': [],
+                                            'Media Service': []
+                                        };
+
+                                        awsStatus.forEach(item => {
+                                            if (['SSL Certificate'].includes(item.name)) {
+                                                groups['Global Resources'].push(item);
+                                            } else if (['Lambda Role', 'Deployment Bucket', 'API Lambda', 'API Distribution'].includes(item.name)) {
+                                                groups['API Service'].push(item);
+                                            } else if (['Admin Site Bucket', 'Admin Distribution'].includes(item.name)) {
+                                                groups['Admin Panel'].push(item);
+                                            } else if (['Public Site Bucket', 'Public Distribution'].includes(item.name)) {
+                                                groups['Public Site'].push(item);
+                                            } else if (['Media Site Bucket', 'Media Distribution'].includes(item.name)) {
+                                                groups['Media Service'].push(item);
+                                            } else {
+                                                if (!groups['Other']) groups['Other'] = [];
+                                                groups['Other'].push(item);
+                                            }
+                                        });
+
+                                        return Object.entries(groups).map(([groupName, items]) => {
+                                            if (items.length === 0) return null;
+                                            
+                                            const missingCount = items.filter(i => i.status !== 'Exists' && i.status !== 'Loading').length;
+                                            const loadingCount = items.filter(i => i.status === 'Loading').length;
+                                            const deployedCount = items.filter(i => i.status === 'Exists').length;
+
+                                            const allDeployed = deployedCount === items.length;
+                                            const isCollapsed = collapsedGroups[groupName] !== undefined 
+                                                ? collapsedGroups[groupName] 
+                                                : allDeployed;
+                                                
+                                            const toggleCollapse = () => {
+                                                setCollapsedGroups(prev => ({ ...prev, [groupName]: !isCollapsed }));
+                                            };
 
                                             return (
-                                                <div key={idx} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 flex justify-between items-center">
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-sm font-semibold text-white">{item.name}</span>
-                                                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{item.type}</span>
+                                                <div key={groupName} className="bg-gray-800/30 rounded-lg border border-gray-700/50 overflow-hidden">
+                                                    <div 
+                                                        className="bg-gray-800/50 px-4 py-2 border-b border-gray-700/50 flex items-center justify-between cursor-pointer hover:bg-gray-700/50 transition-colors"
+                                                        onClick={toggleCollapse}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            {isCollapsed ? <ChevronRight className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                                                            <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">{groupName}</span>
                                                         </div>
-                                                        <div className="text-xs text-gray-500 font-mono">{item.id}</div>
-                                                        {hasMissingDeps && item.status !== 'Exists' && (
-                                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                                <span className="text-[10px] text-gray-500 uppercase font-bold mr-1">Requires:</span>
-                                                                {missingDeps.map(dep => (
-                                                                    <span key={dep} className="text-[10px] bg-red-900/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
-                                                                        {dep}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className={`flex items-center justify-end gap-2 text-sm font-semibold ${
-                                                            item.status === 'Exists' ? 'text-green-400' :
-                                                            item.status === 'Missing' ? 'text-yellow-400' : 
-                                                            item.status === 'Loading' ? 'text-blue-400' :
-                                                            'text-red-400'
-                                                        }`}>
-                                                            {item.status === 'Exists' && <Check className="w-4 h-4" />}
-                                                            {item.status === 'Missing' && <X className="w-4 h-4" />}
-                                                            {item.status === 'Error' && <X className="w-4 h-4" />}
-                                                            {item.status === 'Loading' && <RefreshCw className="w-4 h-4 animate-spin" />}
-                                                            {item.status}
+                                                        <div className="flex items-center gap-3">
+                                                            {loadingCount > 0 ? (
+                                                                <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                                                                    <RefreshCw className="w-3 h-3 animate-spin" /> {loadingCount}
+                                                                </span>
+                                                            ) : null}
+                                                            <span className="text-[10px] font-medium flex items-center gap-1 text-green-400">
+                                                                <Check className="w-3 h-3" /> {deployedCount}
+                                                            </span>
+                                                            {missingCount > 0 && (
+                                                                <span className="text-[10px] font-medium flex items-center gap-1 text-red-400">
+                                                                    <X className="w-3 h-3" /> {missingCount}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[10px] text-gray-600 font-bold px-1.5 py-0.5 rounded bg-gray-900/50">{items.length}</span>
                                                         </div>
-                                                        {item.status === 'Missing' && (
-                                                            <button
-                                                                onClick={() => handleFix(item)}
-                                                                disabled={fixing === item.id || (item.type === 'Lambda' && !!deploying) || hasMissingDeps}
-                                                                className={`mt-2 px-3 py-1 bg-yellow-600/20 text-yellow-500 rounded border border-yellow-600/50 hover:bg-yellow-600/30 transition-colors text-xs flex items-center gap-1 ml-auto ${hasMissingDeps ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
-                                                                title={hasMissingDeps ? `Prerequisites missing: ${missingDeps.join(', ')}` : ''}
-                                                            >
-                                                                {item.type === 'Lambda' ? (
-                                                                    <PlusCircle className={`w-3 h-3 ${deploying === 'api' ? 'animate-spin' : ''}`} />
-                                                                ) : (
-                                                                    <Wrench className={`w-3 h-3 ${fixing === item.id ? 'animate-spin' : ''}`} />
-                                                                )}
-                                                                {item.type === 'Lambda' ? (deploying === 'api' ? 'Deploying...' : 'Deploy') : (fixing === item.id ? 'Fixing...' : 'Fix')}
-                                                            </button>
-                                                        )}
-                                                        {item.details === 'Needs Custom Certificate' && (
-                                                            <button
-                                                                onClick={() => handleFix(item)}
-                                                                disabled={fixing === item.id || (awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED')}
-                                                                className={`mt-2 px-3 py-1 bg-blue-600/20 text-blue-400 rounded border border-blue-600/50 hover:bg-blue-600/30 transition-colors text-xs flex items-center gap-1 ml-auto ${awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                title={awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'Wait for SSL Certificate to be ISSUED' : 'Attach Custom Certificate'}
-                                                            >
-                                                                <ShieldCheck className={`w-3 h-3 ${fixing === item.id ? 'animate-spin' : ''}`} />
-                                                                {fixing === item.id ? 'Attaching...' : 'Add Certificate'}
-                                                            </button>
-                                                        )}
-                                                        {item.details && item.status === 'Exists' && (
-                                                            <div className={`text-xs mt-1 ${item.details === 'Needs Custom Certificate' ? 'text-blue-400' : 'text-gray-500'}`}>
-                                                                {item.details}
-                                                            </div>
-                                                        )}
                                                     </div>
+                                                    {!isCollapsed && (
+                                                        <div className="divide-y divide-gray-700/30">
+                                                            {items.map((item, idx) => {
+                                                                const missingDeps = (AWS_DEPENDENCIES[item.name] || []).filter(depName => {
+                                                                    const dep = awsStatus!.find(s => s.name === depName)
+                                                                    return !dep || dep.status !== 'Exists'
+                                                                })
+                                                                const hasMissingDeps = missingDeps.length > 0
+
+                                                                return (
+                                                                    <div key={idx} className="p-3 flex justify-between items-center transition-colors hover:bg-gray-800/50">
+                                                                        <div>
+                                                                            <div className="flex items-center gap-2 mb-0.5">
+                                                                                <span className="text-sm font-semibold text-gray-200">{item.name}</span>
+                                                                                <span className="text-[9px] px-1.5 py-0.5 rounded border border-gray-600 bg-gray-800/50 text-gray-400 uppercase tracking-wider">{item.type}</span>
+                                                                            </div>
+                                                                            <div className="text-[10px] text-gray-500 font-mono truncate max-w-[240px]" title={item.id}>{item.id}</div>
+                                                                            {hasMissingDeps && item.status !== 'Exists' && (
+                                                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                                                    <span className="text-[9px] text-gray-500 uppercase font-bold mr-0.5">Requires:</span>
+                                                                                    {missingDeps.map(dep => (
+                                                                                        <span key={dep} className="text-[9px] bg-red-900/20 text-red-400 px-1 py-0.5 rounded border border-red-500/20">
+                                                                                            {dep}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-right flex flex-col items-end">
+                                                                            <div className={`flex items-center gap-1.5 text-xs font-semibold ${
+                                                                                item.status === 'Exists' ? 'text-green-400' :
+                                                                                item.status === 'Missing' ? 'text-yellow-400' : 
+                                                                                item.status === 'Loading' ? 'text-blue-400' :
+                                                                                'text-red-400'
+                                                                            }`}>
+                                                                                {item.status === 'Exists' && <Check className="w-3.5 h-3.5" />}
+                                                                                {item.status === 'Missing' && <X className="w-3.5 h-3.5" />}
+                                                                                {item.status === 'Error' && <X className="w-3.5 h-3.5" />}
+                                                                                {item.status === 'Loading' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                                                                                {item.status}
+                                                                            </div>
+                                                                            {item.status === 'Missing' && (
+                                                                                <button
+                                                                                    onClick={() => handleFix(item)}
+                                                                                    disabled={fixing === item.id || (item.type === 'Lambda' && !!deploying) || hasMissingDeps}
+                                                                                    className={`mt-1.5 px-2 py-1 bg-yellow-600/20 text-yellow-500 rounded border border-yellow-600/50 hover:bg-yellow-600/30 transition-colors text-[10px] flex items-center gap-1 ${hasMissingDeps ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+                                                                                    title={hasMissingDeps ? `Prerequisites missing: ${missingDeps.join(', ')}` : ''}
+                                                                                >
+                                                                                    {item.type === 'Lambda' ? (
+                                                                                        <PlusCircle className={`w-3 h-3 ${deploying === 'api' ? 'animate-spin' : ''}`} />
+                                                                                    ) : (
+                                                                                        <Wrench className={`w-3 h-3 ${fixing === item.id ? 'animate-spin' : ''}`} />
+                                                                                    )}
+                                                                                    {item.type === 'Lambda' ? (deploying === 'api' ? 'Deploying...' : 'Deploy') : (fixing === item.id ? 'Fixing...' : 'Fix')}
+                                                                                </button>
+                                                                            )}
+                                                                            {item.details === 'Needs Custom Certificate' && (
+                                                                                <button
+                                                                                    onClick={() => handleFix(item)}
+                                                                                    disabled={fixing === item.id || (awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED')}
+                                                                                    className={`mt-1.5 px-2 py-1 bg-blue-600/20 text-blue-400 rounded border border-blue-600/50 hover:bg-blue-600/30 transition-colors text-[10px] flex items-center gap-1 ${awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                                    title={awsStatus.find(s => s.type === 'Certificate')?.details !== 'ISSUED' ? 'Wait for SSL Certificate to be ISSUED' : 'Attach Custom Certificate'}
+                                                                                >
+                                                                                    <ShieldCheck className={`w-3 h-3 ${fixing === item.id ? 'animate-spin' : ''}`} />
+                                                                                    {fixing === item.id ? 'Attaching...' : 'Add Cert'}
+                                                                                </button>
+                                                                            )}
+                                                                            {item.details && item.status === 'Exists' && (
+                                                                                <div className={`text-[10px] mt-1 ${item.details === 'Needs Custom Certificate' ? 'text-blue-400 font-semibold' : 'text-gray-500'}`}>
+                                                                                    {item.details}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )
                                         })

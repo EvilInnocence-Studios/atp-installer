@@ -29,11 +29,14 @@ export function ConfigProject(): JSX.Element {
     
     // Auto-update subdomains
     if (domain) {
+      const isSubdomain = domain.split('.').length > 2
+      const separator = isSubdomain ? '-' : '.'
+      
       updateConfig({
-        publicDomain: `www.${domain}`,
-        adminDomain: `admin.${domain}`,
-        apiDomain: `api.${domain}`,
-        mediaDomain: `media.${domain}`
+        publicDomain: isSubdomain ? domain : `www.${domain}`,
+        adminDomain: `admin${separator}${domain}`,
+        apiDomain: `api${separator}${domain}`,
+        mediaDomain: `media${separator}${domain}`
       })
     } else {
        // Clear or keep defaults? Let's clear to reflect emptyness or minimal valid state
@@ -60,6 +63,17 @@ export function ConfigProject(): JSX.Element {
       isNextDisabled={!config.projectName || !config.destination}
     >
       <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-400 mb-1">Site Name</label>
+          <input
+            type="text"
+            value={config.siteName || ''}
+            onChange={(e) => updateConfig({ siteName: e.target.value })}
+            placeholder="My Awesome Site"
+            className="w-full bg-gray-800 text-white rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-400 mb-1">Project Name/Folder</label>
           <input

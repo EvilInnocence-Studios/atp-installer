@@ -33,6 +33,7 @@ const sanitizeBucketName = (name: string): string => {
 }
 
 const initialConfig: AppConfig = {
+  siteName: 'My ATP App',
   projectName: 'my-atp-app',
   destination: '',
   adminDomain: 'admin.example.com',
@@ -140,11 +141,14 @@ export function InstallerProvider({ children }: { children: ReactNode }): JSX.El
 
       // Update derived defaults
       if (updates.projectName || updates.adminDomain || updates.publicDomain) {
+         const isSubdomain = next.publicDomain.split('.').length > 2
+         const rootDomain = isSubdomain ? next.publicDomain.split('.').slice(-2).join('.') : next.publicDomain
+
          next.advanced = {
            ...next.advanced,
            LAMBDA_FUNCTION_NAME: updates.advanced?.LAMBDA_FUNCTION_NAME ?? `${next.projectName.replace(/[^a-zA-Z0-9]/g, '')}Api`,
            S3BUCKET: updates.advanced?.S3BUCKET ?? sanitizeBucketName(`${bucketProjectName}-deploy`),
-           CERTIFICATE_NAME: updates.advanced?.CERTIFICATE_NAME ?? next.publicDomain,
+           CERTIFICATE_NAME: updates.advanced?.CERTIFICATE_NAME ?? rootDomain,
            AWS_BUCKET_ADMIN: updates.advanced?.AWS_BUCKET_ADMIN ?? sanitizeBucketName(next.adminDomain),
            AWS_BUCKET_PUBLIC: updates.advanced?.AWS_BUCKET_PUBLIC ?? sanitizeBucketName(next.publicDomain),
            AWS_BUCKET_MEDIA: updates.advanced?.AWS_BUCKET_MEDIA ?? sanitizeBucketName(next.mediaDomain)

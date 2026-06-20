@@ -158,7 +158,10 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_API || '
 
     // Admin .env
     const adminEnvContent = `AWS_BUCKET=${config.advanced.AWS_BUCKET_ADMIN || ''}
+API_URL=https://${config.apiDomain}/
 CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_ADMIN || ''}
+ALTERNATE_DOMAIN_NAME=${config.adminDomain}
+CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
 `
     await fs.writeFile(join(adminPath, '.env'), adminEnvContent)
 
@@ -166,13 +169,17 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_ADMIN ||
     const publicEnvContent = `AWS_BUCKET=${config.advanced.AWS_BUCKET_PUBLIC || ''}
 API_URL=https://${config.apiDomain}/
 CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC || ''}
+ALTERNATE_DOMAIN_NAME=${config.publicDomain}
+CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
 `
     await fs.writeFile(join(publicPath, '.env'), publicEnvContent)
  
      // Media .env
      const mediaEnvContent = `AWS_BUCKET=${config.advanced.AWS_BUCKET_MEDIA || ''}
- CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_MEDIA || ''}
- `
+CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_MEDIA || ''}
+ALTERNATE_DOMAIN_NAME=${config.mediaDomain}
+CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
+`
      await fs.writeFile(join(mediaPath, '.env'), mediaEnvContent)
  
     // 5b. Create config.local.ts for Admin and Public
@@ -193,6 +200,8 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC |
 
     await fs.ensureDir(join(publicPath, 'src'))
     await fs.writeFile(join(publicPath, 'src/config.local.ts'), configLocalContent)
+
+    await fs.ensureDir(join(mediaPath, 'src'))
 
     // 6. Setup Databases
     log('Setting up databases...', 'info')
@@ -247,9 +256,15 @@ CLOUDFRONT_DISTRIBUTION_ID=${config.advanced.CLOUDFRONT_DISTRIBUTION_ID_PUBLIC |
  
      log('Installing Media dependencies...', 'info')
      await runCommand('yarn install', mediaPath)
+     await runCommand('yarn install-custom', mediaPath)
  
     // log('Setting up databases...', 'info')
     // await runCommand('yarn setupDb --env=local --yes', apiPath)
+
+    // 8. Save Installer Config
+    const installerConfigPath = join(projectRoot, 'installer-config.json')
+    await fs.writeJson(installerConfigPath, config, { spaces: 2 })
+    log(`Saved installer configuration to ${installerConfigPath}`, 'info')
 
     log('Installation Complete!', 'success')
     win.webContents.send('install-complete', true)
@@ -354,11 +369,27 @@ export async function deployToAws(config: AppConfig, win: BrowserWindow, target:
           let content = await fs.readFile(adminConfigPath, 'utf-8')
           const normalizedUrl = fullUrl.endsWith('/') ? fullUrl : `${fullUrl}/`
           // Replace the URL in the second part of the ternary (the production URL)
-          const newContent = content.replace(/(\?\s*'http:\/\/localhost:3002\/'\s*:\s*)'.*?'/, `$1'${normalizedUrl}'`)
+          const newContent = content.replace(/(baseUrl:\s*[^:]+:\s*)'[^']+'/, `$1'${normalizedUrl}'`)
           
           if (content !== newContent) {
             await fs.writeFile(adminConfigPath, newContent)
             log(`Updated admin/src/config.local.ts with new Lambda URL.`, 'info')
+          }
+        }
+
+        // Update Admin Env files
+        const adminEnvFiles = ['.env', '.env.prod']
+        for (const file of adminEnvFiles) {
+          const envPath = join(adminPath, file)
+          if (await fs.pathExists(envPath)) {
+            let content = await fs.readFile(envPath, 'utf-8')
+            if (content.includes('API_URL=')) {
+              content = content.replace(/API_URL=.*/, `API_URL=${fullUrl}`)
+            } else {
+              content += `\nAPI_URL=${fullUrl}\n`
+            }
+            await fs.writeFile(envPath, content)
+            log(`Updated Admin ${file} with new API URL.`, 'info')
           }
         }
       }
@@ -495,7 +526,7 @@ export async function updateProjectModules(config: AppConfig, newModules: string
 
     // 4. Update config file
     const newConfig = { ...config, modules: newModules }
-    const configPath = join(config.destination, config.projectName, '.gemini', 'installer-config.json')
+    const configPath = join(projectRoot, 'installer-config.json')
     await fs.writeJson(configPath, newConfig, { spaces: 2 })
 
     log('Module sync complete!', 'success')
@@ -530,16 +561,27 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
 
      const modules: string[] = ['core', 'admin', 'public'] // Defaults
      try {
-       const customJson = await fs.readJson(join(apiPath, 'package.custom.json'))
+       const apiCustomJson = await fs.readJson(join(apiPath, 'package.custom.json')).catch(() => ({}))
+       const adminCustomJson = await fs.readJson(join(adminPath, 'package.custom.json')).catch(() => ({}))
+       const publicCustomJson = await fs.readJson(join(publicPath, 'package.custom.json')).catch(() => ({}))
+
        for (const mod of AVAILABLE_MODULES) {
-          if (mod.id === 'core') continue
+          if (mod.id === 'core' || mod.id === 'admin' || mod.id === 'public') continue
+          
           const apiRepos = mod.repos.api || []
-          if (apiRepos.some(r => customJson[r.repoName])) {
+          const adminRepos = mod.repos.admin || []
+          const publicRepos = mod.repos.public || []
+
+          const inApi = apiRepos.length > 0 && apiRepos.some(r => !!apiCustomJson[r.repoName])
+          const inAdmin = adminRepos.length > 0 && adminRepos.some(r => !!adminCustomJson[r.repoName])
+          const inPublic = publicRepos.length > 0 && publicRepos.some(r => !!publicCustomJson[r.repoName])
+
+          if (inApi || inAdmin || inPublic) {
              modules.push(mod.id)
           }
        }
      } catch (e) {
-       console.warn('Failed to read package.custom.json', e)
+       console.warn('Failed to read package.custom.json files', e)
      }
 
      const uniqueModules = Array.from(new Set(modules))
@@ -549,7 +591,7 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
         return val.replace(/^https?:\/\//, '').replace(/\/$/, '')
      }
 
-     const config: Partial<AppConfig> = {
+     const envConfig: Partial<AppConfig> = {
         projectName: require('path').basename(projectPath),
         destination: require('path').dirname(projectPath),
         adminDomain: cleanDomain(apiEnvProd['HOST_ADMIN']) || apiEnv['ADMIN_DOMAIN'] || '',
@@ -558,7 +600,7 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
         mediaDomain: cleanDomain(apiEnvProd['HOST_MEDIA']) || apiEnv['MEDIA_DOMAIN'] || '',
         modules: uniqueModules,
         awsProfile: apiEnv['AWS_PROFILE'] || 'default',
-        awsRegion: 'us-east-1',
+        awsRegion: apiEnv['AWS_REGION'] || apiEnv['AWS_DEFAULT_REGION'] || 'us-east-1',
         
         dbLocal: {
           host: apiEnv['DB_HOST'] || 'localhost',
@@ -594,6 +636,68 @@ export async function loadProjectConfig(projectPath: string): Promise<Partial<Ap
             CLOUDFRONT_DISTRIBUTION_ID_PUBLIC: publicEnv['CLOUDFRONT_DISTRIBUTION_ID'] || '',
             CLOUDFRONT_DISTRIBUTION_ID_MEDIA: mediaEnv['CLOUDFRONT_DISTRIBUTION_ID'] || ''
         }
+     }
+
+     let config: Partial<AppConfig> = {}
+     const configPath = join(projectPath, 'installer-config.json')
+     let changed = false
+
+     try {
+       config = await fs.readJson(configPath)
+     } catch (e) {
+       // If no config exists, we use envConfig entirely
+       config = envConfig
+       changed = true
+     }
+
+     // Merge env values back into config if they differ and are non-empty
+     if (!changed) {
+        const checkAndUpdate = (obj: any, envObj: any, key: string) => {
+            const envVal = envObj[key]
+            if (envVal !== '' && envVal !== undefined && envVal !== null) {
+                if (obj[key] !== envVal) {
+                    obj[key] = envVal
+                    changed = true
+                }
+            }
+        }
+
+        checkAndUpdate(config, envConfig, 'adminDomain')
+        checkAndUpdate(config, envConfig, 'publicDomain')
+        checkAndUpdate(config, envConfig, 'apiDomain')
+        checkAndUpdate(config, envConfig, 'mediaDomain')
+        checkAndUpdate(config, envConfig, 'awsProfile')
+        checkAndUpdate(config, envConfig, 'awsRegion')
+
+        if (config.dbLocal && envConfig.dbLocal) {
+            checkAndUpdate(config.dbLocal, envConfig.dbLocal, 'host')
+            checkAndUpdate(config.dbLocal, envConfig.dbLocal, 'port')
+            checkAndUpdate(config.dbLocal, envConfig.dbLocal, 'user')
+            checkAndUpdate(config.dbLocal, envConfig.dbLocal, 'pass')
+            checkAndUpdate(config.dbLocal, envConfig.dbLocal, 'name')
+        }
+        
+        if (config.dbProd && envConfig.dbProd) {
+            checkAndUpdate(config.dbProd, envConfig.dbProd, 'host')
+            checkAndUpdate(config.dbProd, envConfig.dbProd, 'port')
+            checkAndUpdate(config.dbProd, envConfig.dbProd, 'user')
+            checkAndUpdate(config.dbProd, envConfig.dbProd, 'pass')
+            checkAndUpdate(config.dbProd, envConfig.dbProd, 'name')
+        }
+
+        if (config.advanced && envConfig.advanced) {
+            for (const key of Object.keys(envConfig.advanced)) {
+                checkAndUpdate(config.advanced, envConfig.advanced, key)
+            }
+        }
+     }
+
+     if (changed) {
+         try {
+             await fs.writeJson(configPath, config, { spaces: 2 })
+         } catch (e) {
+             console.warn('Failed to save updated config back to disk', e)
+         }
      }
 
      return config
@@ -681,13 +785,19 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
       run: async () => {
            if (!certName) return { name: 'SSL Certificate', type: 'Certificate', id: 'Not Configured', status: 'Missing' }
            try {
+              // ACM certificates for CloudFront MUST be in us-east-1
+              const runAwsAcm = async (cmd: string): Promise<any> => {
+                 const { stdout } = await execAsync(`aws ${cmd} --profile ${profile} --region us-east-1 --output json`)
+                 return JSON.parse(stdout)
+              }
+
               // List certificates since we don't have ARN
-              const res = await runAws(`acm list-certificates`)
+              const res = await runAwsAcm(`acm list-certificates`)
               const cert = res.CertificateSummaryList?.find((c: any) => c.DomainName === certName)
               if (cert) {
                  // Get more details including validation records
                  try {
-                     const descRes = await runAws(`acm describe-certificate --certificate-arn ${cert.CertificateArn}`)
+                     const descRes = await runAwsAcm(`acm describe-certificate --certificate-arn ${cert.CertificateArn}`)
                      const details = descRes.Certificate
                      return { 
                          name: 'SSL Certificate', 
@@ -833,7 +943,24 @@ export async function runDbSetup(config: AppConfig, win: BrowserWindow, env: 'lo
 
   try {
     log(`Initializing ${env} database...`, 'info')
-    const { stdout } = await execAsync(`yarn setupDb --env=${env} --yes`, { cwd: apiPath })
+
+    const mediaBucket = config.mediaDomain;
+    const siteName = config.siteName || '';
+    const adminAppName = `${siteName} Admin`;
+    const publicAppName = siteName;
+    const imageHost = `https://${mediaBucket}`;
+
+    const args = [
+      `--env=${env}`,
+      `--yes`,
+      `--mediaBucket="${mediaBucket}"`,
+      `--siteName="${siteName.replace(/"/g, '\\"')}"`,
+      `--adminAppName="${adminAppName.replace(/"/g, '\\"')}"`,
+      `--publicAppName="${publicAppName.replace(/"/g, '\\"')}"`,
+      `--imageHost="${imageHost}"`
+    ].join(' ');
+
+    const { stdout } = await execAsync(`yarn setupDb ${args}`, { cwd: apiPath })
     stdout.split('\n').forEach(line => line.trim() && log(line.trim(), 'info'))
     log(`${env} database initialized successfully!`, 'success')
     return true
