@@ -185,6 +185,16 @@ CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
     // 5b. Create config.local.ts for Admin and Public
     log('Creating config.local.ts...', 'info')
     const configLocalContent = `export const localConfig = {
+    public: {
+      baseUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? 'http://localhost:3000/' 
+            : 'https://${config.publicDomain}/'
+    },
+    admin: {
+      baseUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? 'http://localhost:3001/' 
+            : 'https://${config.adminDomain}/'
+    },
     api: {
         baseUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
             ? 'http://localhost:3002/' 
