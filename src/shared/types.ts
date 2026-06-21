@@ -114,8 +114,14 @@ export const AVAILABLE_MODULES: Module[] = [
     id: 'theming', name: 'Theming Engine', description: 'Theming engine for customizable UI styles.', required: true,
     repos: {
       api: [],
-      admin: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
-      public: [{ url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' }],
+      admin: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-theming-shared.git', branch: 'main', repoName: 'theming-shared' }
+      ],
+      public: [
+        { url: 'https://github.com/EvilInnocence-Studios/atp-theming-ui.git', branch: 'main', repoName: 'theming' },
+        { url: 'https://github.com/EvilInnocence-Studios/atp-theming-shared.git', branch: 'main', repoName: 'theming-shared' }
+      ],
       media: []
     }
   },
