@@ -72,6 +72,14 @@ export async function runInstaller(config: AppConfig, win: BrowserWindow): Promi
        await runCommand('git clone https://github.com/EvilInnocence-Studios/atp-media.git media', projectRoot)
     }
 
+    // 5. Clone develop
+    const developPath = join(projectRoot, 'develop')
+    if (await fs.pathExists(developPath)) {
+      log('Develop directory already exists, skipping clone.', 'info')
+    } else {
+      log('Cloning develop...', 'info')
+      await runCommand('git clone https://github.com/EvilInnocence-Studios/atp-develop.git develop', projectRoot)
+    }
 
      // 4. Create package.custom.json
      const generateCustomJson = async (type: 'api' | 'admin' | 'public' | 'media', targetPath: string): Promise<void> => {
@@ -267,6 +275,9 @@ CERTIFICATE_NAME=${config.advanced.CERTIFICATE_NAME || ''}
      log('Installing Media dependencies...', 'info')
      await runCommand('yarn install', mediaPath)
      await runCommand('yarn install-custom', mediaPath)
+
+     log('Installing Develop dependencies...', 'info')
+     await runCommand('yarn install', developPath)
  
     // log('Setting up databases...', 'info')
     // await runCommand('yarn setupDb --env=local --yes', apiPath)
@@ -806,29 +817,45 @@ export async function checkAwsStatus(config: AppConfig, win: BrowserWindow): Pro
 
               // List certificates since we don't have ARN
               const res = await runAwsAcm(`acm list-certificates`)
-              const cert = res.CertificateSummaryList?.find((c: any) => c.DomainName === certName)
-              if (cert) {
-                 // Get more details including validation records
-                 try {
-                     const descRes = await runAwsAcm(`acm describe-certificate --certificate-arn ${cert.CertificateArn}`)
-                     const details = descRes.Certificate
-                     return { 
-                         name: 'SSL Certificate', 
-                         type: 'Certificate', 
-                         id: certName, 
-                         status: 'Exists', 
-                         details: cert.Status,
-                         metadata: {
-                             DomainValidationOptions: details.DomainValidationOptions,
-                             Issuer: details.Issuer,
-                             Subject: details.Subject,
-                             NotBefore: details.NotBefore,
-                             NotAfter: details.NotAfter
-                         }
+              
+              let validCert: any = null
+              let validDetails: any = null
+
+              if (res.CertificateSummaryList) {
+                  for (const c of res.CertificateSummaryList) {
+                      if (c.DomainName === certName || c.DomainName === `*.${certName}`) {
+                          try {
+                              const descRes = await runAwsAcm(`acm describe-certificate --certificate-arn ${c.CertificateArn}`)
+                              const details = descRes.Certificate
+                              const sans: string[] = details.SubjectAlternativeNames || []
+                              
+                              // Ensure it covers the wildcard domain
+                              if (sans.includes(`*.${certName}`)) {
+                                  validCert = c
+                                  validDetails = details
+                                  break // Found a valid wildcard certificate
+                              }
+                          } catch (e) {
+                              console.warn('Failed to describe certificate during search', e)
+                          }
+                      }
+                  }
+              }
+
+              if (validCert && validDetails) {
+                 return { 
+                     name: 'SSL Certificate', 
+                     type: 'Certificate', 
+                     id: certName, 
+                     status: 'Exists', 
+                     details: validCert.Status,
+                     metadata: {
+                         DomainValidationOptions: validDetails.DomainValidationOptions,
+                         Issuer: validDetails.Issuer,
+                         Subject: validDetails.Subject,
+                         NotBefore: validDetails.NotBefore,
+                         NotAfter: validDetails.NotAfter
                      }
-                 } catch (e) {
-                     console.warn('Failed to describe certificate', e)
-                     return { name: 'SSL Certificate', type: 'Certificate', id: certName, status: 'Exists', details: cert.Status }
                  }
               } else {
                  return { name: 'SSL Certificate', type: 'Certificate', id: certName, status: 'Missing' }

@@ -1,0 +1,1 @@
+const { exec } = require('child_process'); exec('"C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe" --version', (err, stdout, stderr) => { console.log('ERROR:', err); console.log('STDOUT:', stdout); console.log('STDERR:', stderr); });

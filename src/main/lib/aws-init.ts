@@ -139,14 +139,34 @@ export async function ensureCertificate(domainName: string, options: AwsInitOpti
   const acmOptions = { ...options, region: 'us-east-1' }
   
   const res = await runAws(`acm list-certificates`, acmOptions)
-  const existing = res.CertificateSummaryList?.find((c: any) => c.DomainName === domainName)
   
-  if (existing) {
-    return existing.CertificateArn
+  let validExistingArn: string | undefined
+
+  if (res.CertificateSummaryList) {
+    for (const c of res.CertificateSummaryList) {
+      if (c.DomainName === domainName || c.DomainName === `*.${domainName}`) {
+        try {
+          const descRes = await runAws(`acm describe-certificate --certificate-arn ${c.CertificateArn}`, acmOptions)
+          const details = descRes.Certificate
+          const sans: string[] = details.SubjectAlternativeNames || []
+          
+          if (sans.includes(`*.${domainName}`)) {
+            validExistingArn = c.CertificateArn
+            break
+          }
+        } catch (e) {
+          console.warn('Failed to describe certificate', e)
+        }
+      }
+    }
+  }
+  
+  if (validExistingArn) {
+    return validExistingArn
   }
 
-  console.log(`Requesting certificate for ${domainName}...`)
-  const requestRes = await runAws(`acm request-certificate --domain-name ${domainName} --validation-method DNS`, acmOptions)
+  console.log(`Requesting certificate for ${domainName} and *.${domainName}...`)
+  const requestRes = await runAws(`acm request-certificate --domain-name ${domainName} --subject-alternative-names "*.${domainName}" --validation-method DNS`, acmOptions)
   return requestRes.CertificateArn
 }
 

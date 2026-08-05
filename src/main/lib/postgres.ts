@@ -4,7 +4,14 @@ import { DatabaseConfig } from '../../shared/types'
 
 const execAsync = promisify(exec)
 
-let cachedPsqlPath: string | null = null
+let cachedPsqlPath: string | null = null;
+
+export const psqlPaths = [
+  'C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe',
+  'C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe',
+  'C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe',
+  'C:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe'
+];
 
 async function getPsqlPath(): Promise<string> {
   if (cachedPsqlPath) return cachedPsqlPath
@@ -19,11 +26,7 @@ async function getPsqlPath(): Promise<string> {
   }
 
   // 2. Check common Windows installation paths
-  const commonPaths = [
-    'C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe',
-    'C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe',
-    'C:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe'
-  ]
+  const commonPaths = psqlPaths;
 
   for (const path of commonPaths) {
     try {
@@ -43,7 +46,7 @@ async function runPsql(cmd: string, pass: string): Promise<{ stdout: string }> {
     const psqlPath = await getPsqlPath()
     // Replace the 'psql' placeholder in the cmd with the actual path
     const resolvedCmd = cmd.replace(/^psql/, psqlPath)
-    
+
     return await execAsync(resolvedCmd, {
       env: { ...process.env, PGPASSWORD: pass }
     })
@@ -62,7 +65,7 @@ export async function testPostgresConnection(config: DatabaseConfig): Promise<bo
     // For cockroach, we might need 'defaultdb' instead of 'postgres'
     const dbName = config.host.includes('cockroach') ? 'defaultdb' : 'postgres'
     const finalCmd = cmd.replace('-d postgres', `-d ${dbName}`)
-    
+
     await runPsql(finalCmd, config.pass)
     return true
   } catch (error) {
@@ -77,7 +80,7 @@ export async function listPostgreSQLDatabases(config: DatabaseConfig): Promise<s
     const dbName = config.host.includes('cockroach') ? 'defaultdb' : 'postgres'
     const cmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -d ${dbName} -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;"`
     const { stdout } = await runPsql(cmd, config.pass)
-    
+
     return stdout
       .split('\n')
       .map(line => line.trim())
@@ -130,7 +133,7 @@ export async function wipeDatabase(config: DatabaseConfig): Promise<void> {
   try {
     const dropCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -c "DROP DATABASE IF EXISTS \\"${config.name}\\";"`
     const createCmd = `psql -h ${config.host} -p ${config.port} -U ${config.user} -c "CREATE DATABASE \\"${config.name}\\";"`
-    
+
     await runPsql(dropCmd, config.pass)
     await runPsql(createCmd, config.pass)
   } catch (error) {
