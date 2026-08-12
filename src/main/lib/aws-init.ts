@@ -215,10 +215,16 @@ export async function ensureCloudFrontDistribution(apiPath: string, env: Record<
         const variables = lambdaConfig.Environment?.Variables || {}
         variables.CLOUDFRONT_DISTRIBUTION_ID = distributionId
         
-        const varsStr = Object.entries(variables).map(([k, v]) => `${k}="${v}"`).join(',')
+        const tmpFile = join(apiPath, 'lambda-env-update.json')
+        await fs.writeFile(tmpFile, JSON.stringify({ Variables: variables }))
+        const fileUrl = 'file://' + tmpFile.replace(/\\/g, '/')
         
-        await execAsync(`aws lambda update-function-configuration --function-name ${env.LAMBDA_FUNCTION_NAME} --environment "Variables={${varsStr}}" --profile ${env.AWS_PROFILE} --region ${env.AWS_REGION}`)
-        console.log(`Successfully updated Lambda ${env.LAMBDA_FUNCTION_NAME} environment.`)
+        try {
+          await execAsync(`aws lambda update-function-configuration --function-name ${env.LAMBDA_FUNCTION_NAME} --environment "${fileUrl}" --profile ${env.AWS_PROFILE} --region ${env.AWS_REGION}`)
+          console.log(`Successfully updated Lambda ${env.LAMBDA_FUNCTION_NAME} environment.`)
+        } finally {
+          await fs.remove(tmpFile)
+        }
       } catch (e: any) {
         console.error(`Failed to update Lambda environment variables: ${e.message}`)
       }
