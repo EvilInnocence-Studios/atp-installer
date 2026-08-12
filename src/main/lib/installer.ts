@@ -1085,6 +1085,7 @@ export async function deployAllInfrastructure(config: AppConfig, win: BrowserWin
 
         const env: Record<string, string> = {
             ALTERNATE_DOMAIN_NAME: alternateDomain,
+            ALTERNATE_DOMAIN_NAMES: alternateDomain,
             CERTIFICATE_NAME: config.advanced.CERTIFICATE_NAME || '',
             LAMBDA_FUNCTION_NAME: project === 'api' ? config.advanced.LAMBDA_FUNCTION_NAME || '' : '',
             AWS_PROFILE: config.awsProfile,
