@@ -10,6 +10,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:win": "npm run build && electron-builder --win --config",
+    "deploy:win": "npm run build:win && bash build-deploy-installer.sh",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
