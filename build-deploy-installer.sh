@@ -4,8 +4,8 @@
 set -e
 
 # Hardcoded variables (Update these values)
-BUCKET_NAME="your-s3-bucket-name"
-S3_KEY="path/to/upload/installer.exe"
+BUCKET_NAME="www.mycomicwebsite.com"
+S3_KEY="installer/ATP_Installer_v1.0.0.exe"
 
 # Get the directory of the current script (which is now install-wizard)
 WIZARD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
